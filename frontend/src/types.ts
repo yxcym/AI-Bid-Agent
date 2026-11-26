@@ -34,6 +34,7 @@ export interface PipelineResult {
   scheduled_job: string | null
   items: Notice[]
   warnings: string[]
+  pushed_to?: string[]
 }
 
 export interface SiteInfo {
@@ -41,6 +42,13 @@ export interface SiteInfo {
   name: string
   enabled: boolean
   needs_login: boolean
+}
+
+export interface PushStatus {
+  enabled: boolean
+  ready: boolean
+  username: string
+  recipients: number
 }
 
 export interface Health {
@@ -51,6 +59,7 @@ export interface Health {
   fingerprints: number
   scheduled_jobs: number
   output_dir: string
+  push?: PushStatus
 }
 
 export interface Job {

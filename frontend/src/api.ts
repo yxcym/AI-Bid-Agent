@@ -2,6 +2,11 @@
 
 import type { FileItem, Health, Job, ParsedIntent, PipelineResult } from './types'
 
+/** 推送测试返回结构 */
+export interface PushTestResult {
+  to: string
+}
+
 async function request<T>(url: string, init?: RequestInit): Promise<T> {
   const resp = await fetch(url, init)
   let body: { success?: boolean; message?: string; data?: T } | null = null
@@ -39,4 +44,6 @@ export const api = {
   files: () => request<FileItem[]>('/api/files'),
 
   clearFingerprints: () => post<{ removed: number }>('/api/fingerprints/clear', {}),
+
+  testPush: () => post<PushTestResult>('/api/push/test', {}),
 }

@@ -9,6 +9,7 @@ from fastapi.responses import FileResponse
 from pydantic import BaseModel, Field
 
 from app.common.errors import BizException
+from app.push.emailer import EmailPushError
 
 router = APIRouter(prefix="/api", tags=["bid-agent"])
 
@@ -44,6 +45,7 @@ def health(request: Request) -> dict:
         "fingerprints": ctx.dedup.count(),
         "scheduled_jobs": len(ctx.scheduler.list_jobs()),
         "output_dir": str(cfg.output_path()),
+        "push": ctx.pusher.status(),
     }
     # 统一信封：前端解包逻辑要求 {success, data}，裸dict会被前端判为失败
     return {"success": True, "data": data}
@@ -73,6 +75,19 @@ def clear_fingerprints(request: Request) -> dict:
     ctx = _ctx(request)
     removed = ctx.dedup.clear()
     return {"success": True, "message": f"已清空 {removed} 条指纹", "data": {"removed": removed}}
+
+
+# ---------------------------------------------------------------- 推送
+
+@router.post("/push/test")
+def test_push(request: Request) -> dict:
+    """发一封连通性测试邮件：不用等真实抓取，填完凭据即可验配置。"""
+    ctx = _ctx(request)
+    try:
+        to = ctx.pusher.send_test()
+    except EmailPushError as exc:
+        raise BizException(str(exc)) from exc
+    return {"success": True, "message": f"测试邮件已发送至 {to}", "data": {"to": to}}
 
 
 # ---------------------------------------------------------------- 定时任务

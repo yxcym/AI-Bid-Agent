@@ -25,6 +25,7 @@ from app.intent.rule_parser import RuleIntentParser
 from app.pipeline.cleaner import RuleCleaner
 from app.pipeline.dedup import SqliteFingerprintStore
 from app.pipeline.service import PipelineService
+from app.push.emailer import EmailPusher
 from app.schedule.scheduler import TaskScheduler
 
 logging.basicConfig(
@@ -46,6 +47,7 @@ class AppContext:
         self.dedup = SqliteFingerprintStore(config.db_path())
         self.docgen = WordDocGenerator(config)
         self.scheduler = TaskScheduler(config)
+        self.pusher = EmailPusher(config)
         self.pipeline = PipelineService(
             config=config,
             parser=self.parser,
@@ -54,6 +56,7 @@ class AppContext:
             dedup=self.dedup,
             docgen=self.docgen,
             scheduler=self.scheduler,
+            pusher=self.pusher,
         )
         self.scheduler.bind(self._run_scheduled)
 
@@ -81,11 +84,12 @@ async def lifespan(app: FastAPI):
     app.state.ctx = ctx
     ctx.scheduler.start()
     log.info(
-        "启动完成 | mock=%s | 站点=%d | 指纹=%d | 解析器=%s",
+        "启动完成 | mock=%s | 站点=%d | 指纹=%d | 解析器=%s | 邮件推送=%s",
         config.crawler.mock,
         len(config.enabled_sites()),
         ctx.dedup.count(),
         ctx.parser.name,
+        "就绪" if ctx.pusher.enabled else ("未配置" if config.push.email.enabled else "未启用"),
     )
     yield
     ctx.scheduler.shutdown()

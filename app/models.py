@@ -83,6 +83,8 @@ class PipelineResult:
     scheduled_job: str | None = None
     items: list[Notice] = field(default_factory=list)
     warnings: list[str] = field(default_factory=list)
+    # 推送成功的收件方（如 "a@qq.com, b@163.com"）；失败进 warnings
+    pushed_to: list[str] = field(default_factory=list)
 
     def to_dict(self) -> dict[str, Any]:
         return {
@@ -94,5 +96,6 @@ class PipelineResult:
             "doc_path": self.doc_path,
             "scheduled_job": self.scheduled_job,
             "warnings": self.warnings,
+            "pushed_to": self.pushed_to,
             "items": [n.to_dict() for n in self.items],
         }

@@ -83,12 +83,32 @@ class IntentSection(BaseModel):
     parser: str = "rule"
 
 
+class EmailPushSection(BaseModel):
+    """SMTP 邮件推送。授权码等敏感项放 config/secrets.yaml（gitignore），启动时合并覆盖。"""
+
+    enabled: bool = False
+    # 留空则按发件邮箱域名自动推断（qq/163/126/gmail/outlook 等）
+    smtp_host: str = ""
+    smtp_port: int = 0  # 0 = 自动（465 走 SSL，587 走 STARTTLS）
+    username: str = ""
+    password: str = ""
+    from_addr: str = ""  # 留空 = username
+    to_addrs: list[str] = Field(default_factory=list)
+    max_items_in_digest: int = 8
+    timeout_seconds: int = 20
+
+
+class PushSection(BaseModel):
+    email: EmailPushSection = Field(default_factory=EmailPushSection)
+
+
 class AppConfig(BaseModel):
     app: AppSection = Field(default_factory=AppSection)
     crawler: CrawlerConfig = Field(default_factory=CrawlerConfig)
     intent: IntentSection = Field(default_factory=IntentSection)
     doc: DocSection = Field(default_factory=DocSection)
     schedule: ScheduleSection = Field(default_factory=ScheduleSection)
+    push: PushSection = Field(default_factory=PushSection)
 
     # ---- 路径解析：配置里写相对路径，统一落到项目根下 ----
     def output_path(self) -> Path:
@@ -106,6 +126,20 @@ class AppConfig(BaseModel):
         return [s for s in self.crawler.sites if s.enabled]
 
 
+SECRETS_PATH = CONFIG_PATH.parent / "secrets.yaml"
+
+
+def _deep_merge(base: dict, override: dict) -> dict:
+    """secrets.yaml 只该有少数敏感键，深合并进主配置，其它结构不动。"""
+    out = dict(base)
+    for key, value in (override or {}).items():
+        if isinstance(value, dict) and isinstance(out.get(key), dict):
+            out[key] = _deep_merge(out[key], value)
+        else:
+            out[key] = value
+    return out
+
+
 @lru_cache(maxsize=1)
 def load_config(path: Path | None = None) -> AppConfig:
     target = path or CONFIG_PATH
@@ -113,4 +147,9 @@ def load_config(path: Path | None = None) -> AppConfig:
         raise FileNotFoundError(f"配置文件不存在: {target}")
     with target.open("r", encoding="utf-8") as f:
         raw = yaml.safe_load(f) or {}
+    # 密钥覆盖层：config/secrets.yaml 存在则深合并（gitignore，不入库）
+    if path is None and SECRETS_PATH.exists():
+        with SECRETS_PATH.open("r", encoding="utf-8") as f:
+            secrets = yaml.safe_load(f) or {}
+        raw = _deep_merge(raw, secrets)
     return AppConfig.model_validate(raw)

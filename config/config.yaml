@@ -108,3 +108,17 @@ doc:
 schedule:
   enabled: true
   timezone: Asia/Shanghai
+
+# 邮件推送：文档生成后自动把 Word + 摘要发到邮箱（增量语义：无新增不出文档、不发邮件）
+push:
+  email:
+    # enabled=true 且凭据齐全（secrets.yaml 或本段）才会实际发信
+    enabled: false
+    smtp_host: ""      # 留空按发件邮箱域名自动推断（qq/163/126/gmail/outlook…）
+    smtp_port: 0       # 0 = 自动（465 走 SSL，587 走 STARTTLS）
+    username: ""       # 发件邮箱，如 xxx@qq.com
+    password: ""       # 授权码【不要写在这里】——填到 config/secrets.yaml（已 gitignore）
+    from_addr: ""      # 留空 = username
+    to_addrs: []       # 收件人列表，可多个
+    max_items_in_digest: 8
+    timeout_seconds: 20

@@ -17,6 +17,7 @@ frontend/dist/
 # 本地配置与密钥
 .env
 .env.*
+config/secrets.yaml
 !config/config.yaml
 
 # 编辑器

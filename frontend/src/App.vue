@@ -18,8 +18,10 @@ const tasks = ref<Job[]>([])
 const files = ref<FileItem[]>([])
 const writeDoc = ref(true)
 const schedule = ref(true)
-const loading = reactive({ parse: false, run: false, meta: false })
+const loading = reactive({ parse: false, run: false, meta: false, push: false })
 const error = ref('')
+const pushMsg = ref('')
+const pushOk = ref(false)
 
 const enabledSites = computed(() => health.value?.sites.filter((s) => s.enabled).length ?? 0)
 
@@ -97,6 +99,22 @@ async function clearFingerprints() {
   }
 }
 
+async function testPush() {
+  error.value = ''
+  pushMsg.value = ''
+  loading.push = true
+  try {
+    const res = await api.testPush()
+    pushOk.value = true
+    pushMsg.value = `测试邮件已发送至 ${res.to}`
+  } catch (e) {
+    pushOk.value = false
+    pushMsg.value = (e as Error).message
+  } finally {
+    loading.push = false
+  }
+}
+
 function fmtTime(v: string | number | null): string {
   if (v === null || v === undefined || v === '') return '—'
   const d = new Date(v)
@@ -136,6 +154,16 @@ function docUrl(path: string | null): string {
           <span class="pill">站点 {{ enabledSites }}/{{ health.sites.length }}</span>
           <span class="pill">指纹 {{ health.fingerprints }}</span>
           <span class="pill">定时 {{ health.scheduled_jobs }}</span>
+          <span
+            class="pill"
+            :class="health.push ? (health.push.ready ? 'pill-ok' : health.push.enabled ? 'pill-warn' : 'pill-muted') : 'pill-muted'"
+            :title="health.push?.username ? `发件 ${health.push.username}` : '未配置 SMTP 凭据'"
+          >
+            {{ health.push ? (health.push.ready ? '邮件就绪' : health.push.enabled ? '邮件缺凭据' : '邮件未启用') : '邮件未启用' }}
+          </span>
+          <button class="btn btn-dark btn-sm" :disabled="loading.push" @click="testPush">
+            {{ loading.push ? '发送中…' : '测试邮件' }}
+          </button>
           <button class="btn btn-dark btn-sm" @click="clearFingerprints">清空指纹</button>
           <button class="btn btn-dark btn-sm" :disabled="loading.meta" @click="refreshMeta">刷新</button>
         </div>
@@ -147,6 +175,7 @@ function docUrl(path: string | null): string {
         <span>自然语言</span><i>→</i><span>意图解析</span><i>→</i><span>多源抓取</span><i>→</i>
         <span>清洗去重</span><i>→</i><span>Word 文档</span><i>→</i><span>定时推送</span>
       </div>
+      <p v-if="pushMsg" class="push-toast" :class="pushOk ? 'push-ok' : 'push-err'">{{ pushMsg }}</p>
     </header>
 
     <section class="card">
@@ -208,6 +237,9 @@ function docUrl(path: string | null): string {
       <p v-if="result.doc_path" class="note">
         文档已生成 <code>{{ result.doc_path }}</code>
         <a class="btn btn-sm" :href="docUrl(result.doc_path)" target="_blank">下载 Word</a>
+      </p>
+      <p v-if="result.pushed_to?.length" class="note">
+        邮件已推送至 <code>{{ result.pushed_to.join('、') }}</code>（Word 附件＋条目速览）
       </p>
       <ul v-if="result.warnings.length" class="warnings">
         <li v-for="w in result.warnings" :key="w">{{ w }}</li>

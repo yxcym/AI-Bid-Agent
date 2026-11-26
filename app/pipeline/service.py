@@ -8,6 +8,7 @@ from __future__ import annotations
 
 import logging
 from pathlib import Path
+from typing import Any
 
 from app.common.errors import BizException
 from app.config import PROJECT_ROOT, AppConfig, SiteConfig
@@ -32,6 +33,7 @@ class PipelineService:
         dedup: SqliteFingerprintStore,
         docgen: WordDocGenerator,
         scheduler: TaskScheduler,
+        pusher: Any | None = None,
     ) -> None:
         self._config = config
         self._parser = parser
@@ -40,6 +42,8 @@ class PipelineService:
         self._dedup = dedup
         self._docgen = docgen
         self._scheduler = scheduler
+        # 推送器走鸭子类型（.enabled / .send_digest），换短信/webhook 渠道不用改这里
+        self._pusher = pusher
 
     def parse_only(self, query: str) -> ParsedIntent:
         return self._parser.parse(query, self._config.enabled_sites())
@@ -88,6 +92,12 @@ class PipelineService:
             if fresh:
                 path = self._docgen.generate(intent, fresh)
                 result.doc_path = _display_path(path)
+                # ---- 推送：文档生成了就送达（无文档即无新增，天然免打扰） ----
+                if self._pusher is not None and self._pusher.enabled:
+                    try:
+                        result.pushed_to.append(self._pusher.send_digest(intent, fresh, path))
+                    except Exception as exc:
+                        result.warnings.append(f"邮件推送失败：{exc}")
             else:
                 result.warnings.append("本轮无新增条目，未生成文档（增量推送语义）")
 

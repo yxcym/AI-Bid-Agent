@@ -141,6 +141,26 @@ body {
   opacity: 0.5;
 }
 
+.push-toast {
+  max-width: 1100px;
+  margin: 10px auto 0;
+  padding: 6px 14px;
+  border-radius: 8px;
+  font-size: 13px;
+}
+
+.push-toast.push-ok {
+  background: rgba(74, 222, 128, 0.16);
+  border: 1px solid rgba(74, 222, 128, 0.45);
+  color: #a7f3c4;
+}
+
+.push-toast.push-err {
+  background: rgba(251, 113, 133, 0.16);
+  border: 1px solid rgba(251, 113, 133, 0.45);
+  color: #fecdd3;
+}
+
 /* ---------------- 内容卡片 ---------------- */
 
 .card {
