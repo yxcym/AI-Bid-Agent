@@ -1,0 +1,14 @@
+# AI-Bid-Agent 运行依赖
+fastapi==0.115.6
+uvicorn[standard]==0.34.0
+httpx==0.28.1
+beautifulsoup4==4.12.3
+lxml==5.3.0
+python-docx==1.1.2
+APScheduler==3.11.0
+pydantic==2.10.4
+pydantic-settings==2.7.0
+PyYAML==6.0.2
+
+# 登录态站点抓取（第二阶段启用，需额外执行 playwright install chromium）
+# playwright==1.49.1

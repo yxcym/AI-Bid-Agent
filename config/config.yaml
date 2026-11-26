@@ -1,0 +1,72 @@
+# ============================================================
+# AI-Bid-Agent 配置文件
+# 改这个文件就能换站点、换输出目录、切换 mock / 真实抓取
+# ============================================================
+
+app:
+  name: AI-Bid-Agent
+  port: 8000
+  # 生成的 Word 落在项目根下 output/
+  output_dir: output
+  # 指纹去重用的 SQLite
+  db_path: data/bidagent.db
+
+crawler:
+  # true = 用内置样例数据跑通全链路（不联网，第一版默认）
+  # false = 真实 HTTP 抓取，需要先校准下面各站点的选择器
+  mock: true
+  timeout_seconds: 20
+  max_pages: 2
+  max_items_per_site: 20
+  user_agent: "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0 Safari/537.36"
+
+  sites:
+    - code: ccgp
+      name: 中国政府采购网
+      base_url: https://www.ccgp.gov.cn
+      # {keyword} 与 {page} 会被替换；真实参数需抓包校准后再改这里
+      list_url: "https://search.ccgp.gov.cn/bxsearch?searchtype=1&page_index={page}&kw={keyword}"
+      needs_login: false
+      item_selector: "ul.vT-srch-result-list-bid > li"
+      title_selector: "a"
+      link_selector: "a"
+      date_selector: "span"
+      enabled: true
+
+    - code: ggzy
+      name: 全国公共资源交易平台
+      base_url: http://deal.ggzy.gov.cn
+      list_url: "http://deal.ggzy.gov.cn/ds/deal/dealList.jsp?keyword={keyword}&page={page}"
+      needs_login: false
+      item_selector: ".deal-list li"
+      title_selector: "a"
+      link_selector: "a"
+      date_selector: ".date"
+      enabled: true
+
+    # 登录态站点：赛题要求至少 1 个。
+    # 当前 needs_login=true 时 HTTP 抓取会直接回报“需 Playwright 侧车”，不静默失败。
+    - code: demo_login
+      name: 示例会员制招标网
+      base_url: https://example-bid-portal.invalid
+      list_url: "https://example-bid-portal.invalid/search?kw={keyword}&page={page}"
+      needs_login: true
+      item_selector: ".result-item"
+      title_selector: ".title a"
+      link_selector: ".title a"
+      date_selector: ".publish-date"
+      enabled: false
+
+intent:
+  # rule = 正则规则（默认，不烧钱不吃 key）
+  # llm  = 大模型解析，需要 BIDAGENT_LLM_API_KEY，不可用时自动回退 rule
+  parser: rule
+
+doc:
+  font_cn: 宋体
+  font_en: Times New Roman
+  max_chars_per_item: 600
+
+schedule:
+  enabled: true
+  timezone: Asia/Shanghai

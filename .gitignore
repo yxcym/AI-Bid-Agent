@@ -1,0 +1,24 @@
+# 虚拟环境与缓存
+.venv/
+__pycache__/
+*.py[cod]
+*.egg-info/
+
+# 运行时产物
+data/
+output/
+logs/
+*.log
+
+# 前端
+frontend/node_modules/
+frontend/dist/
+
+# 本地配置与密钥
+.env
+.env.*
+!config/config.yaml
+
+# 编辑器
+.idea/
+.vscode/
