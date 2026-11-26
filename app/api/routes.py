@@ -33,7 +33,7 @@ def _ctx(request: Request):
 def health(request: Request) -> dict:
     ctx = _ctx(request)
     cfg = ctx.config
-    return {
+    data = {
         "status": "ok",
         "mock": cfg.crawler.mock,
         "parser": ctx.parser.name,
@@ -45,6 +45,8 @@ def health(request: Request) -> dict:
         "scheduled_jobs": len(ctx.scheduler.list_jobs()),
         "output_dir": str(cfg.output_path()),
     }
+    # 统一信封：前端解包逻辑要求 {success, data}，裸dict会被前端判为失败
+    return {"success": True, "data": data}
 
 
 @router.post("/intent/parse")

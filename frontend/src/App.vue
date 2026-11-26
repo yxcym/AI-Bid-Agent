@@ -109,28 +109,43 @@ function fmtSize(n: number): string {
   if (n < 1048576) return (n / 1024).toFixed(1) + ' KB'
   return (n / 1048576).toFixed(1) + ' MB'
 }
+
+function docUrl(path: string | null): string {
+  if (!path) return '#'
+  const name = path.split('/').pop() || path
+  return '/api/files/' + encodeURIComponent(name)
+}
 </script>
 
 <template>
   <div class="page">
-    <header class="topbar">
-      <div>
-        <h1>AI-Bid-Agent</h1>
-        <p class="sub">招投标信息智能聚合 · 自然语言进，结构化 Word 出</p>
+    <header class="masthead">
+      <div class="masthead-inner">
+        <div class="brand">
+          <div class="logo">AI</div>
+          <div>
+            <h1>AI-Bid-Agent</h1>
+            <p class="sub">招投标信息智能聚合 · 自然语言进，结构化 Word 出</p>
+          </div>
+        </div>
+        <div class="status" v-if="health">
+          <span class="pill" :class="health.mock ? 'pill-warn' : 'pill-ok'">
+            {{ health.mock ? 'MOCK 演示数据' : '真实抓取' }}
+          </span>
+          <span class="pill">解析器 {{ health.parser }}</span>
+          <span class="pill">站点 {{ enabledSites }}/{{ health.sites.length }}</span>
+          <span class="pill">指纹 {{ health.fingerprints }}</span>
+          <span class="pill">定时 {{ health.scheduled_jobs }}</span>
+          <button class="btn btn-dark btn-sm" @click="clearFingerprints">清空指纹</button>
+          <button class="btn btn-dark btn-sm" :disabled="loading.meta" @click="refreshMeta">刷新</button>
+        </div>
+        <div class="status" v-else>
+          <span class="pill pill-warn">{{ backendDown ? '后端未连接，请确认服务已启动' : '连接中…' }}</span>
+        </div>
       </div>
-      <div class="health" v-if="health">
-        <span class="pill" :class="health.mock ? 'pill-warn' : 'pill-ok'">
-          {{ health.mock ? 'MOCK 演示数据' : '真实抓取' }}
-        </span>
-        <span class="pill">解析器 {{ health.parser }}</span>
-        <span class="pill">启用站点 {{ enabledSites }}/{{ health.sites.length }}</span>
-        <span class="pill">指纹 {{ health.fingerprints }}</span>
-        <span class="pill">定时任务 {{ health.scheduled_jobs }}</span>
-        <button class="btn btn-ghost btn-sm" @click="clearFingerprints">清空指纹</button>
-        <button class="btn btn-ghost btn-sm" :disabled="loading.meta" @click="refreshMeta">刷新</button>
-      </div>
-      <div class="health" v-else>
-        <span class="pill pill-warn">{{ backendDown ? '后端未连接，请先运行 run.ps1' : '加载中…' }}</span>
+      <div class="flowstrip">
+        <span>自然语言</span><i>→</i><span>意图解析</span><i>→</i><span>多源抓取</span><i>→</i>
+        <span>清洗去重</span><i>→</i><span>Word 文档</span><i>→</i><span>定时推送</span>
       </div>
     </header>
 
@@ -183,14 +198,17 @@ function fmtSize(n: number): string {
       <h2>执行结果</h2>
       <div class="stats">
         <div class="stat"><b>{{ result.fetched }}</b><span>抓取</span></div>
-        <div class="stat"><b class="good">{{ result.fresh }}</b><span>新增</span></div>
-        <div class="stat"><b class="muted">{{ result.deduplicated }}</b><span>去重</span></div>
+        <div class="stat stat-good"><b>{{ result.fresh }}</b><span>新增</span></div>
+        <div class="stat stat-muted"><b>{{ result.deduplicated }}</b><span>去重</span></div>
         <div class="stat"><b>{{ result.items.length }}</b><span>本轮条目</span></div>
       </div>
       <p v-if="result.scheduled_job" class="note">
         已注册定时任务 <code>{{ result.scheduled_job }}</code>（可在下方任务表删除）
       </p>
-      <p v-if="result.doc_path" class="note">文档已生成 <code>{{ result.doc_path }}</code></p>
+      <p v-if="result.doc_path" class="note">
+        文档已生成 <code>{{ result.doc_path }}</code>
+        <a class="btn btn-sm" :href="docUrl(result.doc_path)" target="_blank">下载 Word</a>
+      </p>
       <ul v-if="result.warnings.length" class="warnings">
         <li v-for="w in result.warnings" :key="w">{{ w }}</li>
       </ul>
