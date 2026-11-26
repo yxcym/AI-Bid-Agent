@@ -22,15 +22,28 @@ class SiteConfig(BaseModel):
     code: str
     name: str
     base_url: str
-    # 列表页模板，支持 {keyword} {page} 占位
+    # 列表页模板，支持 {keyword} {page} {start_date} {end_date} 占位
     list_url: str
     needs_login: bool = False
-    # bs4 选择器；不同站点不一样，改这里就能扩站
+    # 响应形态：html = 服务端直出网页（bs4 选择器）；json = AJAX 接口（字段映射）
+    data_format: str = "html"
+    # ---- html 模式 ----
     item_selector: str = "li"
     title_selector: str = "a"
     link_selector: str = "a"
     date_selector: str = ""
     content_selector: str = ""
+    # ---- json 模式 ----
+    # 条目数组的取值路径，点号分隔；路径中若遇 JSON 字符串会自动再解一层
+    json_items_path: str = ""
+    json_title_field: str = "title"
+    json_date_field: str = ""
+    # 直链字段；没有直链时用 json_url_template 按 {字段} / {字段.compact} 构造
+    json_url_field: str = ""
+    json_url_template: str = ""
+    json_content_fields: list[str] = Field(default_factory=list)
+    # 额外请求头（Referer 等），键值原样合并进 httpx 请求
+    request_headers: dict[str, str] = Field(default_factory=dict)
     enabled: bool = True
 
 
