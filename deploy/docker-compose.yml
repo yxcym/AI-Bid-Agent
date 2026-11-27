@@ -1,5 +1,5 @@
-# 部署形态示例：nginx(80) + app(uvicorn) 两服务
-# 状态：未在本机验证（本机无Docker）。
+# 部署形态：nginx(80) + app(uvicorn) 两服务
+# 状态：本机已实测（Docker Desktop 29.9.3 / compose v5.7.1，2026-11-27）
 # 前置：先在 frontend/ 构建产物（npm install && npm run build）
 # 用法：在项目根执行  docker compose -f deploy/docker-compose.yml up --build
 # 注意：compose 相对路径以本文件位置 deploy/ 为基准
@@ -16,6 +16,8 @@ services:
       # 指纹库与生成的文档持久化到宿主机
       - ../data:/srv/bidagent/data
       - ../output:/srv/bidagent/output
+      # 凭据只在运行时挂入，镜像里没有（.dockerignore 已排除）
+      - ../config/secrets.yaml:/srv/bidagent/config/secrets.yaml:ro
     restart: unless-stopped
 
   nginx:

@@ -1,0 +1,22 @@
+# 构建上下文排除项：镜像里绝不含凭据与运行时数据
+.venv/
+.git/
+.gitignore
+node_modules/
+frontend/node_modules/
+data/
+output/
+logs/
+__pycache__/
+*.pyc
+
+# 凭据：只在运行时以只读卷挂入，不打进镜像
+config/secrets.yaml
+config/*.secret.yaml
+
+# 部署脚本与文档不参与运行时
+docs/
+scripts/
+service/
+tests/
+*.md

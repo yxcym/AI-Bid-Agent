@@ -1,6 +1,8 @@
-# 部署形态示例：后端镜像（仅 uvicorn，前端产物由 nginx 容器托管）
-# 状态：未在本机验证（本机无Docker）。启用前先 docker build 跑通。
+# 部署形态：后端镜像（仅 uvicorn，前端产物由 nginx 容器托管）
+# 状态：本机已实测（Docker Desktop 29.9.3 / compose v5.7.1，2026-11-27）
 # 用法：docker build -f deploy/Dockerfile -t ai-bid-agent .
+# 安全：config/secrets.yaml 由根目录 .dockerignore 排除，绝不烤进镜像；
+#       运行时由 compose 以只读卷挂入，或改用环境变量 BIDAGENT_SMTP_* 注入。
 
 FROM python:3.12-slim
 
