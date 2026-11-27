@@ -20,6 +20,9 @@ frontend/dist/
 config/secrets.yaml
 !config/config.yaml
 
+# Basic Auth 口令文件（含口令哈希，只存本机）
+deploy/htpasswd
+
 # 编辑器
 .idea/
 .vscode/

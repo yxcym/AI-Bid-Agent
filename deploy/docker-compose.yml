@@ -23,7 +23,9 @@ services:
   nginx:
     image: nginx:alpine
     ports:
-      - "80:80"
+      # 只绑本机回环：局域网/校园网里别人打不开，避免未鉴权接口被随手点到
+      # 要给局域网访问时改成 "80:80"，并启用 nginx.conf 里的 Basic Auth 段
+      - "127.0.0.1:80:80"
     volumes:
       - ../frontend/dist:/usr/share/nginx/html:ro
       - ./nginx.conf:/etc/nginx/conf.d/default.conf:ro
