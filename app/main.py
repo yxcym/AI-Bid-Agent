@@ -16,7 +16,7 @@ from fastapi.staticfiles import StaticFiles
 
 from app.api.routes import router
 from app.common.errors import BizException
-from app.config import PROJECT_ROOT, AppConfig, credential_source, load_config
+from app.config import RESOURCE_ROOT, AppConfig, credential_source, load_config
 from app.crawler.registry import build_crawler
 from app.docx_gen.generator import WordDocGenerator
 from app.intent.base import IntentParser
@@ -140,7 +140,7 @@ async def handle_unexpected(_: Request, exc: Exception) -> JSONResponse:
 
 
 # ---- 前端静态托管：单进程同源形态（演示默认）。部署形态见 docs/前端与部署说明.md ----
-_DIST = PROJECT_ROOT / "frontend" / "dist"
+_DIST = RESOURCE_ROOT / "frontend" / "dist"
 if _DIST.exists():
     # API 路由在上面已注册，静态挂载兜底其余路径；html=True 让 / 直出 index.html
     app.mount("/", StaticFiles(directory=str(_DIST), html=True), name="frontend")

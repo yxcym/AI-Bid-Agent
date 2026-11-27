@@ -26,3 +26,8 @@ deploy/htpasswd
 # 编辑器
 .idea/
 .vscode/
+
+# PyInstaller 产物（exe 不入 git，留在本地 dist/）
+build/
+dist/
+*.spec

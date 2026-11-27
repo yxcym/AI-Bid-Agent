@@ -15,7 +15,43 @@ import yaml
 from pydantic import BaseModel, Field
 
 PROJECT_ROOT = Path(__file__).resolve().parent.parent
-CONFIG_PATH = PROJECT_ROOT / "config" / "config.yaml"
+
+# ---- 冻结环境（PyInstaller 单文件 exe）路径分流 ----
+# 只读资源（内嵌的 frontend/dist、配置模板）解包在 _MEIPASS；可写数据（data/、output/、
+# 用户可编辑的 config/config.yaml、config/secrets.yaml）落 exe 旁——否则写到临时目录，
+# 程序一退出就蒸发。
+import sys
+
+import shutil
+
+_FROZEN = getattr(sys, "frozen", False)
+if _FROZEN:
+    RESOURCE_ROOT = Path(getattr(sys, "_MEIPASS", Path(sys.executable).parent))
+    BASE_DIR = Path(sys.executable).resolve().parent
+    CONFIG_PATH = BASE_DIR / "config" / "config.yaml"
+else:
+    RESOURCE_ROOT = PROJECT_ROOT
+    BASE_DIR = PROJECT_ROOT
+    CONFIG_PATH = PROJECT_ROOT / "config" / "config.yaml"
+
+
+def ensure_user_config() -> str:
+    """冻结模式首次运行：把内嵌模板复制到 exe 旁（用户可编辑、可持久化）。"""
+    if not _FROZEN:
+        return ""
+    msgs: list[str] = []
+    cfg_dir = BASE_DIR / "config"
+    cfg_dir.mkdir(parents=True, exist_ok=True)
+    target = cfg_dir / "config.yaml"
+    if not target.exists():
+        shutil.copyfile(RESOURCE_ROOT / "config" / "config.yaml", target)
+        msgs.append(f"已生成默认配置 {target}")
+    example = cfg_dir / "secrets.yaml.example"
+    if not example.exists():
+        shutil.copyfile(RESOURCE_ROOT / "config" / "secrets.yaml.example", example)
+    if msgs:
+        print(*msgs, sep="\n")
+    return "; ".join(msgs)
 
 
 class SiteConfig(BaseModel):
@@ -134,7 +170,7 @@ class AppConfig(BaseModel):
     @staticmethod
     def _resolve(raw: str) -> Path:
         p = Path(raw)
-        return p if p.is_absolute() else PROJECT_ROOT / p
+        return p if p.is_absolute() else BASE_DIR / p
 
     def enabled_sites(self) -> list[SiteConfig]:
         return [s for s in self.crawler.sites if s.enabled]
@@ -225,7 +261,12 @@ def _deep_merge(base: dict, override: dict) -> dict:
 def load_config(path: Path | None = None) -> AppConfig:
     target = path or CONFIG_PATH
     if not target.exists():
-        raise FileNotFoundError(f"配置文件不存在: {target}")
+        # 冻结模式下用户删了 exe 旁的配置时，退回内嵌只读模板
+        fallback = RESOURCE_ROOT / "config" / "config.yaml"
+        if fallback.exists():
+            target = fallback
+        else:
+            raise FileNotFoundError(f"配置文件不存在: {target}")
     with target.open("r", encoding="utf-8") as f:
         raw = yaml.safe_load(f) or {}
     # 密钥覆盖层：config/secrets.yaml 存在则深合并（gitignore，不入库）

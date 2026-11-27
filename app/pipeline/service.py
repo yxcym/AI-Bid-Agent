@@ -11,7 +11,7 @@ from pathlib import Path
 from typing import Any
 
 from app.common.errors import BizException
-from app.config import PROJECT_ROOT, AppConfig, SiteConfig
+from app.config import BASE_DIR, AppConfig, SiteConfig
 from app.crawler.base import CrawlerClient, LoginRequiredError
 from app.docx_gen.generator import WordDocGenerator
 from app.intent.base import IntentParser
@@ -137,8 +137,8 @@ class PipelineService:
 
 
 def _display_path(path: Path) -> str:
-    """接口里返回相对项目根的路径，避免把本机绝对路径暴露给前端。"""
+    """接口里返回相对运行根目录的路径，避免把本机绝对路径暴露给前端。"""
     try:
-        return path.relative_to(PROJECT_ROOT).as_posix()
+        return path.relative_to(BASE_DIR).as_posix()
     except ValueError:
         return path.name
