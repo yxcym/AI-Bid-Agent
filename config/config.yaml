@@ -96,9 +96,14 @@ crawler:
       enabled: false
 
 intent:
-  # rule = 正则规则（默认，不烧钱不吃 key）
-  # llm  = 大模型解析，需要 BIDAGENT_LLM_API_KEY，不可用时自动回退 rule
-  parser: rule
+  # rule   = 正则规则（零成本零依赖）
+  # llm    = 全部走大模型（key 放 secrets.yaml 的 intent.llm 或环境变量 BIDAGENT_LLM_API_KEY）
+  # hybrid = 规则先行，仅关键词缺失/疑似有频率但没解出 cron 时才调模型补空缺（推荐，调用量趋近于零）
+  parser: hybrid
+  llm:
+    api_key: ""    # 留空 = 未启用；真实 key 放 secrets.yaml 同名段
+    base_url: "https://api.deepseek.com/v1"   # 豆包: https://ark.cn-beijing.volces.com/api/v3；千问: https://dashscope.aliyuncs.com/compatible-mode/v1
+    model: "deepseek-chat"                    # 豆包填推理接入点 ID（ep- 开头）；千问填 qwen-plus 等
 
 doc:
   font_cn: 宋体

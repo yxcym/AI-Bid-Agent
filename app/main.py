@@ -20,6 +20,7 @@ from app.config import PROJECT_ROOT, AppConfig, credential_source, load_config
 from app.crawler.registry import build_crawler
 from app.docx_gen.generator import WordDocGenerator
 from app.intent.base import IntentParser
+from app.intent.hybrid_parser import HybridIntentParser
 from app.intent.llm_parser import LlmIntentParser
 from app.intent.rule_parser import RuleIntentParser
 from app.pipeline.cleaner import RuleCleaner
@@ -64,8 +65,14 @@ class AppContext:
 
     @staticmethod
     def _build_parser(config: AppConfig) -> IntentParser:
+        if config.intent.parser == "hybrid":
+            llm = LlmIntentParser(config.intent.llm)
+            if not llm.enabled():
+                log.warning("intent.parser=hybrid 但未配置 LLM key（BIDAGENT_LLM_API_KEY 或 secrets.yaml intent.llm.api_key），当前等效 rule")
+            # 无 key 时 HybridIntentParser 自身会退化为纯规则并改名 hybrid(no-llm)，health 可见
+            return HybridIntentParser(llm=llm)
         if config.intent.parser == "llm":
-            llm = LlmIntentParser()
+            llm = LlmIntentParser(config.intent.llm)
             if llm.enabled():
                 return llm
             log.warning("intent.parser=llm 但未配置 BIDAGENT_LLM_API_KEY，自动回退 rule")

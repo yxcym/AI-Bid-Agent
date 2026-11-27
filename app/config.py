@@ -80,9 +80,21 @@ class ScheduleSection(BaseModel):
     timezone: str = "Asia/Shanghai"
 
 
+class LlmSection(BaseModel):
+    """意图解析 LLM。key 属敏感项：放 config/secrets.yaml 的 intent.llm 下，或环境变量。"""
+
+    api_key: str = ""
+    base_url: str = "https://api.deepseek.com/v1"  # OpenAI 兼容协议，豆包/千问只改这里
+    model: str = "deepseek-chat"  # 豆包填推理接入点 ID（ep- 开头）
+    timeout_seconds: float = 30.0
+
+
 class IntentSection(BaseModel):
-    # rule | llm
+    # rule = 正则规则（默认，不烧钱不吃 key）
+    # llm = 全部走大模型，不可用时自动回退 rule
+    # hybrid = 规则先行，仅当规则拿不准（关键词缺失/疑似有频率但没解出 cron）才调模型补空缺
     parser: str = "rule"
+    llm: LlmSection = Field(default_factory=LlmSection)
 
 
 class EmailPushSection(BaseModel):
@@ -137,6 +149,10 @@ ENV_SMTP_USERNAME = "BIDAGENT_SMTP_USERNAME"
 ENV_SMTP_PASSWORD = "BIDAGENT_SMTP_PASSWORD"
 ENV_SMTP_TO = "BIDAGENT_SMTP_TO"  # 逗号/分号/空白分隔，可多个收件人
 
+ENV_LLM_API_KEY = "BIDAGENT_LLM_API_KEY"
+ENV_LLM_BASE_URL = "BIDAGENT_LLM_BASE_URL"
+ENV_LLM_MODEL = "BIDAGENT_LLM_MODEL"
+
 
 def _env_push_overrides() -> dict:
     """只收集真正设置过的键，没设的键不参与覆盖（避免空字符串把文件里的值冲掉）。"""
@@ -163,6 +179,35 @@ def credential_source() -> str:
     if SECRETS_PATH.exists():
         return "config/secrets.yaml"
     return "config/config.yaml（明文占位，未配置真实凭据）"
+
+
+def _env_llm_overrides() -> dict:
+    """LLM 的环境变量通道：容器/CI 里最常用。没设的键不参与覆盖。"""
+    out: dict = {}
+    for env_name, key in (
+        (ENV_LLM_API_KEY, "api_key"),
+        (ENV_LLM_BASE_URL, "base_url"),
+        (ENV_LLM_MODEL, "model"),
+    ):
+        value = os.getenv(env_name)
+        if value and value.strip():
+            out[key] = value.strip()
+    return out
+
+
+def llm_credential_source() -> str:
+    """LLM key 当前来自哪里——启动日志与排障用，不打印具体值。"""
+    if os.getenv(ENV_LLM_API_KEY, "").strip():
+        return f"环境变量 {ENV_LLM_API_KEY}"
+    if SECRETS_PATH.exists():
+        try:
+            with SECRETS_PATH.open("r", encoding="utf-8") as f:
+                secrets = yaml.safe_load(f) or {}
+            if (secrets.get("intent") or {}).get("llm", {}).get("api_key"):
+                return "config/secrets.yaml"
+        except yaml.YAMLError:
+            pass
+    return "未配置"
 
 
 def _deep_merge(base: dict, override: dict) -> dict:
@@ -193,4 +238,7 @@ def load_config(path: Path | None = None) -> AppConfig:
         env_overrides = _env_push_overrides()
         if env_overrides:
             raw = _deep_merge(raw, {"push": {"email": env_overrides}})
+        llm_overrides = _env_llm_overrides()
+        if llm_overrides:
+            raw = _deep_merge(raw, {"intent": {"llm": llm_overrides}})
     return AppConfig.model_validate(raw)

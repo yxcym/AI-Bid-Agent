@@ -10,5 +10,6 @@ pydantic==2.10.4
 pydantic-settings==2.7.0
 PyYAML==6.0.2
 
+# 开发依赖（本地跑测试用，不进镜像）：.venv 里 pip install pytest==8.3.4
 # 登录态站点抓取（第二阶段启用，需额外执行 playwright install chromium）
 # playwright==1.49.1
