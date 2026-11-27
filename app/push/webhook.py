@@ -45,10 +45,29 @@ def feishu_sign(timestamp: str, secret: str) -> str:
 
 
 def dingtalk_sign(timestamp: str, secret: str) -> str:
-    """钉钉加签：以密钥为 HMAC 的 key，「时间戳\\n密钥」为消息，结果需 URL 编码。"""
+    """钉钉加签：以密钥为 HMAC 的 key，「时间戳\\n密钥」为消息。
+
+    返回**原始 base64**（含 +/= ）；URL 编码由 merge_query 统一做一次。
+    不要在这里先 quote_plus——merge_query 再编一次就成 %25 双重编码，签名必挂。
+    """
     string_to_sign = f"{timestamp}\n{secret}".encode("utf-8")
     digest = hmac.new(secret.encode("utf-8"), string_to_sign, digestmod=hashlib.sha256).digest()
-    return urllib.parse.quote_plus(base64.b64encode(digest).decode("utf-8"))
+    return base64.b64encode(digest).decode("utf-8")
+
+
+def merge_query(url: str, query: dict) -> str:
+    """把签名参数并进 URL 的 query。
+
+    不能用 httpx 的 params 参数：实测它会**覆盖** URL 原有 query
+    （robot/send?access_token=x + params={timestamp,sign} 发出去只剩 timestamp/sign，
+    钉钉报 40035 缺少参数 access_token）。手动合并，access_token 原样保留。
+    """
+    if not query:
+        return url
+    parts = urllib.parse.urlsplit(url)
+    merged = dict(urllib.parse.parse_qsl(parts.query, keep_blank_values=True))
+    merged.update(query)
+    return urllib.parse.urlunsplit(parts._replace(query=urllib.parse.urlencode(merged)))
 
 
 # ---------------------------------------------------------------- 单个通道
@@ -168,7 +187,7 @@ class WebhookChannel:
             raise WebhookPushError(f"{self.label} 未配置 webhook 地址")
         try:
             with httpx.Client(timeout=self._cfg.timeout_seconds) as client:
-                resp = client.post(url, json=body, params=query)
+                resp = client.post(merge_query(url, query), json=body)
                 resp.raise_for_status()
                 data = resp.json()
         except httpx.HTTPStatusError as exc:

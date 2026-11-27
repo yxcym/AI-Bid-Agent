@@ -17,6 +17,7 @@ from app.push.webhook import (
     WebhookPusher,
     dingtalk_sign,
     feishu_sign,
+    merge_query,
 )
 
 SECRET = "test-secret"
@@ -29,8 +30,8 @@ def test_feishu_sign_vector() -> None:
 
 
 def test_dingtalk_sign_vector() -> None:
-    # key = secret，msg = "1700000000000\ntest-secret"，base64 后 urlencode
-    assert dingtalk_sign("1700000000000", SECRET) == "BYMqUCZnSqbfPf1GCfZftO7Rg2g6P%2BRp3%2F4%2BbLNtSGA%3D"
+    # key = secret，msg = "1700000000000\ntest-secret"；返回原始 base64，URL 编码由 merge_query 统一做
+    assert dingtalk_sign("1700000000000", SECRET) == "BYMqUCZnSqbfPf1GCfZftO7Rg2g6P+Rp3/4+bLNtSGA="
 
 
 def test_two_signs_are_not_interchangeable() -> None:
@@ -43,10 +44,57 @@ def test_feishu_sign_is_plain_base64() -> None:
     assert "%" not in feishu_sign("1700000000", SECRET)
 
 
-def test_dingtalk_sign_is_url_encoded() -> None:
-    """钉钉 sign 拼在 query 上，base64 里的 +/= 必须被编码。"""
+def test_dingtalk_sign_is_url_encoded_once_in_url() -> None:
+    """签名进 URL 时只编码一次：+ / = 变 %2B %2F %3D，且不得出现二次编码的 %25。"""
     sign = dingtalk_sign("1700000000000", SECRET)
-    assert "+" not in sign and "/" not in sign
+    url = merge_query("https://oapi.dingtalk.com/robot/send?access_token=T", {"sign": sign})
+    assert "%2B" in url and "%2F" in url and "%3D" in url
+    assert "%25" not in url
+
+
+# ---------------------------------------------------------------- query 合并（httpx params 会顶掉 URL 原有 query，实测踩过的坑）
+
+
+def test_merge_query_keeps_access_token() -> None:
+    url = merge_query(
+        "https://oapi.dingtalk.com/robot/send?access_token=ABC123",
+        {"timestamp": "1700000000000", "sign": "x+y/z="},
+    )
+    assert "access_token=ABC123" in url
+    assert "timestamp=1700000000000" in url
+    assert "sign=x%2By%2Fz%3D" in url  # 单次编码
+    assert "%25" not in url
+
+
+def test_merge_query_empty_is_noop() -> None:
+    assert merge_query("https://f.invalid/hook/x", {}) == "https://f.invalid/hook/x"
+
+
+def test_send_posts_to_merged_url(monkeypatch) -> None:
+    """回归：send() 发出的 URL 必须同时带 URL 原有的 access_token 与新拼的签名参数。"""
+    captured: dict = {}
+
+    class _Client:
+        def __init__(self, *a, **kw) -> None:
+            pass
+
+        def __enter__(self):
+            return self
+
+        def __exit__(self, *a) -> None:
+            return None
+
+        def post(self, url, json=None, params=None):
+            captured["url"] = url
+            return _FakeResp({"errcode": 0, "errmsg": "ok"})
+
+    monkeypatch.setattr("app.push.webhook.httpx.Client", _Client)
+    ch = _channel("dingtalk", secret=SECRET, webhook_url="https://oapi.dingtalk.com/robot/send?access_token=TOKEN123")
+    body, url, query = ch.build_payload(_intent(), _fresh())
+    ch.send(body, url, query)
+    assert "access_token=TOKEN123" in captured["url"]
+    assert "timestamp=" in captured["url"] and "sign=" in captured["url"]
+    assert "%25" not in captured["url"]
 
 
 # ---------------------------------------------------------------- payload 结构
