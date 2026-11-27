@@ -24,6 +24,26 @@ export interface Notice {
   is_new: boolean
 }
 
+export interface SummaryPick {
+  index: number
+  title: string
+  url: string
+  source_name: string
+  publish_date: string
+  why: string
+  risk: string
+}
+
+/** 模型摘要：未启用/失败/无新增时为 null */
+export interface SummaryResult {
+  overview: string
+  picks: SummaryPick[]
+  model: string
+  items_considered: number
+  items_total: number
+  truncated: boolean
+}
+
 export interface PipelineResult {
   query: string
   intent: ParsedIntent
@@ -35,6 +55,7 @@ export interface PipelineResult {
   items: Notice[]
   warnings: string[]
   pushed_to?: string[]
+  summary?: SummaryResult | null
 }
 
 export interface SiteInfo {

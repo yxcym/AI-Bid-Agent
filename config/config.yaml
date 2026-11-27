@@ -145,3 +145,15 @@ push:
     secret: ""
     max_items_in_digest: 5
     timeout_seconds: 15
+
+# 模型摘要：从本轮新增里挑最值得盯的几条（理由＋风险），进 Word 速览页、邮件正文与群消息
+# 失败/未配 key 一律降级为「无摘要」，文档与推送照常，不阻断主链路
+summary:
+  enabled: true
+  max_picks: 3              # 最多挑几条
+  max_items_in_prompt: 20   # 送进模型的条数上限（超出的不进 prompt）
+  timeout_seconds: 60       # 推理模型首句思考时间长，留足
+  # 凭据沿用 intent.llm；要「解析用便宜模型、摘要用强模型」才填下面三项
+  api_key: ""
+  base_url: ""
+  model: ""

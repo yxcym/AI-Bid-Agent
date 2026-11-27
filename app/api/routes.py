@@ -48,6 +48,7 @@ def health(request: Request) -> dict:
         "output_dir": str(cfg.output_path()),
         "push": ctx.pusher.status(),
         "push_webhook": ctx.webhook.status(),
+        "summary": {"enabled": ctx.summarizer.enabled(), "model": ctx.summarizer.model if ctx.summarizer.enabled() else None},
     }
     # 统一信封：前端解包逻辑要求 {success, data}，裸dict会被前端判为失败
     return {"success": True, "data": data}

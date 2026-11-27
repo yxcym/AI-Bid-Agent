@@ -165,6 +165,19 @@ class PushSection(BaseModel):
     dingtalk: WebhookChannelSection = Field(default_factory=WebhookChannelSection)
 
 
+class SummarySection(BaseModel):
+    """新增条目的模型摘要。凭据沿用 intent.llm；这里的三个凭据字段留空即沿用，
+    只有想「解析用便宜模型、摘要用强模型」时才需要填。"""
+
+    enabled: bool = True
+    max_picks: int = 3  # 最多挑几条重点
+    max_items_in_prompt: int = 20  # 送进模型的最大条目数（超出的不进 prompt）
+    timeout_seconds: float = 60.0  # 摘要比解析费 token，推理模型首句思考时间长
+    api_key: str = ""  # 留空 = 沿用 intent.llm.api_key
+    base_url: str = ""  # 留空 = 沿用 intent.llm.base_url
+    model: str = ""  # 留空 = 沿用 intent.llm.model
+
+
 class AppConfig(BaseModel):
     app: AppSection = Field(default_factory=AppSection)
     crawler: CrawlerConfig = Field(default_factory=CrawlerConfig)
@@ -172,6 +185,7 @@ class AppConfig(BaseModel):
     doc: DocSection = Field(default_factory=DocSection)
     schedule: ScheduleSection = Field(default_factory=ScheduleSection)
     push: PushSection = Field(default_factory=PushSection)
+    summary: SummarySection = Field(default_factory=SummarySection)
 
     # ---- 路径解析：配置里写相对路径，统一落到项目根下 ----
     def output_path(self) -> Path:

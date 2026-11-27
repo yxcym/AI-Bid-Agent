@@ -35,6 +35,7 @@ class PipelineService:
         scheduler: TaskScheduler,
         pusher: Any | None = None,
         pushers: list[Any] | None = None,
+        summarizer: Any | None = None,
     ) -> None:
         self._config = config
         self._parser = parser
@@ -46,6 +47,8 @@ class PipelineService:
         # 推送器走鸭子类型（.enabled / .send_digest / .label），换短信/webhook 渠道不用改这里。
         # 多通道并行推送：任一渠道失败只记 warning，不拖累其它渠道与主链路。
         self._pushers: list[Any] = [p for p in (pusher, *(pushers or [])) if p is not None]
+        # 摘要器同样鸭子类型（.enabled / .summarize），失败进 warnings 不阻断
+        self._summarizer = summarizer
 
     def parse_only(self, query: str) -> ParsedIntent:
         return self._parser.parse(query, self._config.enabled_sites())
@@ -92,14 +95,16 @@ class PipelineService:
         # ---- 出文档：只写增量，没有增量就不产空文档 ----
         if write_doc:
             if fresh:
-                path = self._docgen.generate(intent, fresh)
+                # 摘要只在有文档时才做：没有文档就没有落点，白烧 token
+                summary = self._summarize(intent, fresh, result)
+                path = self._docgen.generate(intent, fresh, summary)
                 result.doc_path = _display_path(path)
                 # ---- 推送：文档生成了就送达（无文档即无新增，天然免打扰） ----
                 for pusher in self._pushers:
                     if not pusher.enabled:
                         continue
                     try:
-                        result.pushed_to.append(pusher.send_digest(intent, fresh, path))
+                        result.pushed_to.append(pusher.send_digest(intent, fresh, path, summary))
                     except Exception as exc:
                         channel = getattr(pusher, "label", "推送")
                         result.warnings.append(f"{channel}推送失败：{exc}")
@@ -117,6 +122,18 @@ class PipelineService:
         return result
 
     # ------------------------------------------------------ 内部
+
+    def _summarize(self, intent: ParsedIntent, fresh: list[Notice], result: PipelineResult) -> dict | None:
+        """摘要失败不阻断：模型/网络问题只进 warnings，文档照常出。"""
+        if self._summarizer is None or not self._summarizer.enabled:
+            return None
+        try:
+            summary = self._summarizer.summarize(intent, fresh)
+        except Exception as exc:
+            result.warnings.append(f"摘要未生成：{exc}")
+            return None
+        result.summary = summary
+        return summary
 
     def _pick_sites(self, intent: ParsedIntent) -> list[SiteConfig]:
         enabled = self._config.enabled_sites()

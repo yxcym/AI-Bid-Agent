@@ -29,13 +29,17 @@ class WordDocGenerator:
         self._cfg = config
         self._out_dir = config.output_path()
 
-    def generate(self, intent: ParsedIntent, notices: list[Notice]) -> Path:
+    def generate(
+        self, intent: ParsedIntent, notices: list[Notice], summary: dict | None = None
+    ) -> Path:
         self._out_dir.mkdir(parents=True, exist_ok=True)
         doc = Document()
         self._setup_normal_style(doc)
 
         self._add_title(doc, intent.raw_query)
         self._add_meta(doc, intent, notices)
+        if summary:
+            self._add_summary(doc, summary)
 
         for i, notice in enumerate(notices, start=1):
             self._add_item(doc, i, notice)
@@ -86,6 +90,44 @@ class WordDocGenerator:
             self._style_run(run, size=9, color=_GREY)
             p.paragraph_format.space_after = Pt(2)
 
+        self._add_divider(doc)
+
+    def _add_summary(self, doc: Document, summary: dict) -> None:
+        """重点速览页：模型只给judgement，标题/链接由代码回填（防编造）。"""
+        head = doc.add_paragraph()
+        head_run = head.add_run("重点速览")
+        self._style_run(head_run, size=13, bold=True)
+        head.paragraph_format.space_before = Pt(4)
+        head.paragraph_format.space_after = Pt(4)
+
+        if summary.get("overview"):
+            p = doc.add_paragraph()
+            p.paragraph_format.first_line_indent = Pt(21)
+            run = p.add_run(summary["overview"])
+            self._style_run(run, size=10.5)
+
+        for pick in summary.get("picks") or []:
+            title_p = doc.add_paragraph()
+            title_p.paragraph_format.space_before = Pt(8)
+            title_p.paragraph_format.space_after = Pt(2)
+            title_run = title_p.add_run(f"{pick.get('index')}. {pick.get('title', '')}")
+            self._style_run(title_run, size=11, bold=True)
+
+            why_p = doc.add_paragraph()
+            why_run = why_p.add_run(f"为什么值得看：{pick.get('why') or '—'}")
+            self._style_run(why_run, size=10.5)
+
+            risk_p = doc.add_paragraph()
+            risk_run = risk_p.add_run(f"风险提示：{pick.get('risk') or '未见明显风险'}")
+            self._style_run(risk_run, size=10.5, color=_GREY)
+
+        note = doc.add_paragraph()
+        note_run = note.add_run(
+            f"本页由模型（{summary.get('model', '—')}）基于标题与正文节选生成，仅供参考；"
+            "事实与原文以下方逐条列表为准。"
+        )
+        self._style_run(note_run, size=8.5, color=_GREY)
+        note.paragraph_format.space_before = Pt(8)
         self._add_divider(doc)
 
     def _add_item(self, doc: Document, index: int, notice: Notice) -> None:

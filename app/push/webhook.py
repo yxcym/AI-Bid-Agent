@@ -80,9 +80,19 @@ class WebhookChannel:
 
     # ------------------------------------------------------ 消息构建（无网络副作用）
 
-    def _digest_text(self, intent: ParsedIntent, fresh: list[Notice]) -> str:
+    def _digest_text(self, intent: ParsedIntent, fresh: list[Notice], summary: dict | None = None) -> str:
         c = self._cfg
-        lines = [
+        lines = []
+        if summary:
+            lines.append("【重点速览·模型摘要】")
+            if summary.get("overview"):
+                lines.append(summary["overview"])
+            for pick in summary.get("picks") or []:
+                # 群消息是扫一眼场景：理由截断，完整判断在 Word 里
+                why = (pick.get("why") or "—")[:60]
+                lines.append(f"· {pick.get('title')}｜{why}")
+            lines.append("")
+        lines += [
             f"检索原话：{intent.raw_query}",
             f"关键词：{intent.keyword or '—'}　区域：{intent.region or '不限'}　时间：{intent.time_range_text or '不限'}",
             f"本轮新增：{len(fresh)} 条　生成时间：{datetime.now().strftime('%Y-%m-%d %H:%M')}",
@@ -98,10 +108,13 @@ class WebhookChannel:
         lines.append("—— AI-Bid-Agent 自动推送（增量语义：本轮无新增则不会有这条消息）")
         return "\n".join(lines)
 
-    def build_payload(self, intent: ParsedIntent, fresh: list[Notice]) -> tuple[dict, str, dict]:
+    def build_payload(
+        self, intent: ParsedIntent, fresh: list[Notice], summary: dict | None = None
+    ) -> tuple[dict, str, dict]:
         """返回 (body, url, query)；query 只对钉钉加签有用。"""
         title = f"AI-Bid-Agent 推送：{intent.keyword or '招标信息'} {len(fresh)} 条新增"
         c = self._cfg
+        body_text = self._digest_text(intent, fresh, summary)
         if self.kind == "feishu":
             body: dict = {
                 "msg_type": "post",
@@ -109,7 +122,7 @@ class WebhookChannel:
                     "post": {
                         "zh_cn": {
                             "title": title,
-                            "content": [[{"tag": "text", "text": self._digest_text(intent, fresh)}]],
+                            "content": [[{"tag": "text", "text": body_text}]],
                         }
                     }
                 },
@@ -123,7 +136,7 @@ class WebhookChannel:
         # 钉钉 markdown：标题 + 正文；加签参数拼 query
         body = {
             "msgtype": "markdown",
-            "markdown": {"title": title, "text": f"### {title}\n\n{self._digest_text(intent, fresh)}"},
+            "markdown": {"title": title, "text": f"### {title}\n\n{body_text}"},
         }
         query: dict = {}
         if c.secret.strip():
@@ -200,11 +213,13 @@ class WebhookPusher:
     def status(self) -> list[dict]:
         return [c.status() for c in self.channels]
 
-    def send_digest(self, intent: ParsedIntent, fresh: list[Notice], doc_path=None) -> str:
+    def send_digest(
+        self, intent: ParsedIntent, fresh: list[Notice], doc_path=None, summary: dict | None = None
+    ) -> str:
         # doc_path 只为与 EmailPusher 保持同一鸭子类型签名；群机器人不支持附件，文档另走下载链接
         sent: list[str] = []
         for c in self.active:
-            body, url, query = c.build_payload(intent, fresh)
+            body, url, query = c.build_payload(intent, fresh, summary)
             c.send(body, url, query)
             sent.append(c.label)
         return "、".join(sent)

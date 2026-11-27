@@ -56,6 +56,7 @@ Docker Desktop 已设为登录自启，容器策略`restart: unless-stopped`—�
 - [x] hybrid 意图解析（规则打底，LLM 补空缺；兼容 DeepSeek/火山方舟/千问/智谱等 OpenAI 兼容 API）
 - [x] 邮件推送（SMTP，凭据走 secrets.yaml）
 - [x] 群机器人推送（飞书 post / 钉钉 markdown，双通道各自开关，支持加签与聚合自测）
+- [x] 模型摘要（新增条目里挑重点＋理由＋风险；只让模型输出编号，标题链接由代码回填防编造）
 - [x] Docker 双容器门禁部署（secrets 只读挂载、审计脚本）
 - [x] PyInstaller 单文件 exe（双击即用，无需 Python/Docker/Node）
 - [ ] Playwright登录态侧车（`demo_login`站点占位）

@@ -101,11 +101,22 @@ class EmailPusher:
 
     # ------------------------------------------------------ 消息构建（无网络副作用）
 
-    def _digest_text(self, intent: ParsedIntent, fresh: list[Notice]) -> str:
+    def _digest_text(self, intent: ParsedIntent, fresh: list[Notice], summary: dict | None = None) -> str:
         c = self._cfg
         lines = [
             "AI-Bid-Agent 招标信息推送",
             "",
+        ]
+        if summary:
+            lines.append("【重点速览·模型摘要】")
+            if summary.get("overview"):
+                lines.append(summary["overview"])
+            for pick in summary.get("picks") or []:
+                lines.append(f"· {pick.get('title')}")
+                lines.append(f"  为什么值得看：{pick.get('why') or '—'}")
+                lines.append(f"  风险提示：{pick.get('risk') or '未见明显风险'}")
+            lines.append("")
+        lines += [
             f"检索原话：{intent.raw_query}",
             f"关键词：{intent.keyword or '—'}　区域：{intent.region or '不限'}"
             f"　时间：{intent.time_range_text or '不限'}",
@@ -122,7 +133,7 @@ class EmailPusher:
         lines.append("—— 由 AI-Bid-Agent 自动发送（增量语义：本轮无新增则不会有这封邮件）")
         return "\n".join(lines)
 
-    def _digest_html(self, intent: ParsedIntent, fresh: list[Notice]) -> str:
+    def _digest_html(self, intent: ParsedIntent, fresh: list[Notice], summary: dict | None = None) -> str:
         c = self._cfg
         items = []
         for n in fresh[: c.max_items_in_digest]:
@@ -131,10 +142,31 @@ class EmailPusher:
                 f"<li><a href=\"{n.url}\">{n.title}</a>"
                 f"<br><small style=\"color:#64748b\">{date} · {n.source_name}</small></li>"
             )
+
+        brief = ""
+        if summary:
+            picks_html = "".join(
+                "<li style=\"margin-bottom:10px\">"
+                f"<a href=\"{p.get('url')}\"><b>{p.get('title')}</b></a><br>"
+                f"<small><span style=\"color:#1f4e79\">为什么值得看：</span>{p.get('why') or '—'}</small><br>"
+                f"<small><span style=\"color:#b45309\">风险提示：</span>{p.get('risk') or '未见明显风险'}</small>"
+                "</li>"
+                for p in summary.get("picks") or []
+            )
+            brief = (
+                "<div style=\"background:#f4f7fb;border-left:3px solid #1f4e79;"
+                "padding:12px 16px;margin:16px 0\">"
+                "<h3 style=\"margin:0 0 8px 0;font-size:15px\">重点速览（模型摘要）</h3>"
+                f"<p style=\"margin:0 0 10px 0;color:#334155\">{summary.get('overview') or ''}</p>"
+                f"<ul style=\"margin:0;padding-left:18px\">{picks_html}</ul>"
+                "</div>"
+            )
+
         return (
             "<div style=\"font-family:-apple-system,'Segoe UI','Microsoft YaHei',sans-serif;"
             "max-width:640px;margin:0 auto;color:#1c2733\">"
             "<h2 style=\"border-bottom:2px solid #1f4e79;padding-bottom:8px\">AI-Bid-Agent 招标信息推送</h2>"
+            f"{brief}"
             f"<p>检索原话：<b>{intent.raw_query}</b></p>"
             f"<p>关键词 <b>{intent.keyword or '—'}</b>　区域 <b>{intent.region or '不限'}</b>"
             f"　时间 <b>{intent.time_range_text or '不限'}</b>"
@@ -150,6 +182,7 @@ class EmailPusher:
         intent: ParsedIntent,
         fresh: list[Notice],
         doc_path: Path | None = None,
+        summary: dict | None = None,
     ) -> EmailMessage:
         self._validate()
         c = self._cfg
@@ -157,8 +190,8 @@ class EmailPusher:
         msg["Subject"] = subject
         msg["From"] = formataddr(("AI-Bid-Agent", c.from_addr or c.username))
         msg["To"] = ", ".join(c.to_addrs)
-        msg.set_content(self._digest_text(intent, fresh))
-        msg.add_alternative(self._digest_html(intent, fresh), subtype="html")
+        msg.set_content(self._digest_text(intent, fresh, summary))
+        msg.add_alternative(self._digest_html(intent, fresh, summary), subtype="html")
         if doc_path is not None:
             if not doc_path.exists():
                 raise EmailPushError(f"附件不存在：{doc_path}")
@@ -172,9 +205,11 @@ class EmailPusher:
 
     # ------------------------------------------------------ 发送
 
-    def send_digest(self, intent: ParsedIntent, fresh: list[Notice], doc_path: Path) -> str:
+    def send_digest(
+        self, intent: ParsedIntent, fresh: list[Notice], doc_path: Path, summary: dict | None = None
+    ) -> str:
         subject = f"AI-Bid-Agent 推送：{intent.keyword} 招标信息 {len(fresh)} 条新增"
-        msg = self._build_message(subject, intent, fresh, doc_path)
+        msg = self._build_message(subject, intent, fresh, doc_path, summary)
         self._send(msg)
         return ", ".join(self._cfg.to_addrs)
 

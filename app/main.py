@@ -30,6 +30,7 @@ from app.push.emailer import EmailPusher
 from app.push.webhook import WebhookPusher
 from app.schedule.scheduler import TaskScheduler
 from app.schedule.store import SqliteJobStore
+from app.summary.summarizer import NoticeSummarizer
 
 logging.basicConfig(
     level=logging.INFO,
@@ -53,6 +54,7 @@ class AppContext:
         self.scheduler = TaskScheduler(config, self.jobstore)
         self.pusher = EmailPusher(config)
         self.webhook = WebhookPusher(config)
+        self.summarizer = NoticeSummarizer(config)
         self.pipeline = PipelineService(
             config=config,
             parser=self.parser,
@@ -63,6 +65,7 @@ class AppContext:
             scheduler=self.scheduler,
             pusher=self.pusher,
             pushers=[self.webhook],
+            summarizer=self.summarizer,
         )
         self.scheduler.bind(self._run_scheduled)
 
@@ -97,7 +100,7 @@ async def lifespan(app: FastAPI):
     ctx.scheduler.start()
     restored = ctx.scheduler.restore()
     log.info(
-        "启动完成 | mock=%s | 站点=%d | 指纹=%d | 解析器=%s | 邮件推送=%s（凭据来源：%s）| 群机器人=%s | 定时任务恢复=%d",
+        "启动完成 | mock=%s | 站点=%d | 指纹=%d | 解析器=%s | 邮件推送=%s（凭据来源：%s）| 群机器人=%s | 摘要=%s | 定时任务恢复=%d",
         config.crawler.mock,
         len(config.enabled_sites()),
         ctx.dedup.count(),
@@ -105,6 +108,7 @@ async def lifespan(app: FastAPI):
         "就绪" if ctx.pusher.enabled else ("未配置" if config.push.email.enabled else "未启用"),
         credential_source(),
         "、".join(c.label for c in ctx.webhook.active) or "未配置",
+        "就绪" if ctx.summarizer.enabled() else "未启用",
         restored,
     )
     yield

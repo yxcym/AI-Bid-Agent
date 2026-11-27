@@ -85,6 +85,9 @@ class PipelineResult:
     warnings: list[str] = field(default_factory=list)
     # 推送成功的收件方（如 "a@qq.com, b@163.com"）；失败进 warnings
     pushed_to: list[str] = field(default_factory=list)
+    # 模型摘要：{overview, picks[{index,title,url,source_name,publish_date,why,risk}], model, ...}
+    # 未启用/失败/无新增时为 None，前端据此隐藏摘要卡
+    summary: dict[str, Any] | None = None
 
     def to_dict(self) -> dict[str, Any]:
         return {
@@ -97,5 +100,6 @@ class PipelineResult:
             "scheduled_job": self.scheduled_job,
             "warnings": self.warnings,
             "pushed_to": self.pushed_to,
+            "summary": self.summary,
             "items": [n.to_dict() for n in self.items],
         }

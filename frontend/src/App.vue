@@ -338,6 +338,27 @@ function docUrl(path: string | null): string {
           </div>
         </div>
 
+        <div v-if="result.summary" class="summary-box">
+          <div class="summary-head">
+            <h3>重点速览</h3>
+            <span class="pill2 pill2-accent">模型摘要 · {{ result.summary.model }}</span>
+          </div>
+          <p v-if="result.summary.overview" class="summary-overview">{{ result.summary.overview }}</p>
+          <ol class="summary-picks">
+            <li v-for="p in result.summary.picks" :key="p.index">
+              <a :href="p.url" target="_blank" rel="noopener">{{ p.title }}</a>
+              <p class="summary-why"><span>为什么值得看</span>{{ p.why }}</p>
+              <p class="summary-risk"><span>风险提示</span>{{ p.risk }}</p>
+            </li>
+          </ol>
+          <p class="summary-note">
+            本卡由模型基于标题与正文节选生成，仅供参考；事实与原文以下方条目为准<template
+              v-if="result.summary.truncated"
+            >（仅分析前 {{ result.summary.items_considered }} 条 / 共 {{ result.summary.items_total }} 条）</template
+            >。
+          </p>
+        </div>
+
         <p v-if="result.scheduled_job" class="note">
           已注册定时任务 <code>{{ result.scheduled_job }}</code>（可在下方任务表删除）
         </p>
