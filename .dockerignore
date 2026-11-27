@@ -10,8 +10,9 @@ logs/
 __pycache__/
 *.pyc
 
-# 凭据：只在运行时以只读卷挂入，不打进镜像
+# 凭据：只在运行时以只读卷挂入，不打进镜像（.bak 是本机回退副本，同样不入镜像）
 config/secrets.yaml
+config/secrets.yaml.bak
 config/*.secret.yaml
 
 # 部署脚本与文档不参与运行时

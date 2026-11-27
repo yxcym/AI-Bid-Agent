@@ -204,6 +204,103 @@ class AppConfig(BaseModel):
 
 
 SECRETS_PATH = CONFIG_PATH.parent / "secrets.yaml"
+SECRETS_BACKUP_PATH = CONFIG_PATH.parent / "secrets.yaml.bak"
+
+# 关键凭据字段的取值路径（点号分隔）。漂移检查逐项比对：备份里有值而当前为空 = 疑似误删。
+_SECRETS_KEY_FIELDS = (
+    "push.email.username",
+    "push.email.password",
+    "push.email.to_addrs",
+    "push.feishu.webhook_url",
+    "push.feishu.secret",
+    "push.dingtalk.webhook_url",
+    "push.dingtalk.secret",
+    "intent.llm.api_key",
+)
+
+
+def _yaml_at(path: Path) -> dict:
+    if not path.exists():
+        return {}
+    try:
+        with path.open("r", encoding="utf-8") as f:
+            return yaml.safe_load(f) or {}
+    except (yaml.YAMLError, OSError):
+        return {}
+
+
+def _field_value(data: dict, dotted: str):
+    node = data
+    for part in dotted.split("."):
+        if not isinstance(node, dict):
+            return None
+        node = node.get(part)
+    return node
+
+
+def _has_value(value) -> bool:
+    if value is None:
+        return False
+    if isinstance(value, (list, dict)):
+        return len(value) > 0
+    return bool(str(value).strip())
+
+
+def backup_secrets(path: Path | None = None, backup_path: Path | None = None) -> bool:
+    """把当前 secrets.yaml 复制为 .bak（启动时的「最后完好快照」）。
+
+    只在文件能正常解析时才覆盖备份——坏文件不许污染最后一份好备份。
+    容器内 secrets.yaml 为只读挂载，写备份会失败，由调用方吞掉并记日志。
+    """
+    src = path or SECRETS_PATH
+    dst = backup_path or SECRETS_BACKUP_PATH
+    if not src.exists():
+        return False
+    try:
+        _yaml_at(src)  # 解析失败会在上面抛/回空，这里不拦；空文件也不值得备份
+        data = _yaml_at(src)
+        if not data:
+            return False
+        import shutil
+
+        shutil.copy2(src, dst)
+        return True
+    except OSError:
+        return False
+
+
+def check_secrets_drift(path: Path | None = None, backup_path: Path | None = None) -> list[str]:
+    """对比当前文件与 .bak：备份里有值、当前为空的字段 = 疑似被误删，返回告警列表。
+
+    命中时**不要**再用当前文件覆盖备份（backup_secrets 会跳过），最后一份好备份得以保留。
+    """
+    cur = _yaml_at(path or SECRETS_PATH)
+    bak = _yaml_at(backup_path or SECRETS_BACKUP_PATH)
+    if not bak or not cur:
+        return []
+    lost = []
+    for field in _SECRETS_KEY_FIELDS:
+        if _has_value(_field_value(bak, field)) and not _has_value(_field_value(cur, field)):
+            lost.append(field)
+    return lost
+
+
+def run_secrets_housekeeping(log) -> None:
+    """启动时的凭据例行维护：先查漂移，无漂移才刷新备份。绝不抛异常影响启动。"""
+    try:
+        drift = check_secrets_drift()
+        if drift:
+            log.warning(
+                "secrets.yaml 疑似被误删字段（.bak 里有值而当前为空）：%s。"
+                "如属误删，把 config/secrets.yaml.bak 复制回 secrets.yaml 即可恢复；"
+                "如属有意清空，删除 .bak 后重启即重建备份",
+                "、".join(drift),
+            )
+            return
+        if backup_secrets():
+            log.info("凭据快照已更新: config/secrets.yaml.bak")
+    except Exception:  # 例行维护不许影响启动
+        log.debug("凭据快照维护跳过", exc_info=True)
 
 # 环境变量通道：优先级最高，用于容器/CI/临时覆盖——凭据不落盘。
 # 本机双击启动（启动.bat）拿不到临时 shell 变量，持久化需 setx（写入用户环境，随账户长期存在）。

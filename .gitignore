@@ -18,6 +18,7 @@ frontend/dist/
 .env
 .env.*
 config/secrets.yaml
+config/secrets.yaml.bak
 !config/config.yaml
 
 # Basic Auth 口令文件（含口令哈希，只存本机）

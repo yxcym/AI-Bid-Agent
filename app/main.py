@@ -16,7 +16,13 @@ from fastapi.staticfiles import StaticFiles
 
 from app.api.routes import router
 from app.common.errors import BizException
-from app.config import RESOURCE_ROOT, AppConfig, credential_source, load_config
+from app.config import (
+    RESOURCE_ROOT,
+    AppConfig,
+    credential_source,
+    load_config,
+    run_secrets_housekeeping,
+)
 from app.crawler.registry import build_crawler
 from app.docx_gen.generator import WordDocGenerator
 from app.intent.base import IntentParser
@@ -95,6 +101,7 @@ class AppContext:
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     config = load_config()
+    run_secrets_housekeeping(log)
     ctx = AppContext(config)
     app.state.ctx = ctx
     ctx.scheduler.start()
