@@ -34,7 +34,7 @@ Docker Desktop 已设为登录自启，容器策略`restart: unless-stopped`—�
 | 多源采集 | `app/crawler/` | 站点列表页 → RawNotice | HTTP/Jsoup先行，登录态站点明确报错不静默失败 |
 | 清洗去重 | `app/pipeline/` | 剥广告、截断、指纹增量 | 标题＋归一化URL做MD5指纹 |
 | 文档生成 | `app/docx_gen/` | 新增条目 → Word | 中文宋体、英文Times New Roman分开设 |
-| 前端 | `frontend/` | Vue3＋Vite＋TS单页仪表盘 | 构建产物由 nginx 容器托管（`/api/` 反代到 app）；无 Docker 时退回后端同源托管 |
+| 前端 | `frontend/` | Vue3＋Vite＋TS单页仪表盘（ECharts可视化，按需分包） | 构建产物由 nginx 容器托管（`/api/` 反代到 app）；无 Docker 时退回后端同源托管 |
 
 外加`app/schedule/`（APScheduler定时）与`app/api/`（FastAPI薄路由层）。设计细节见`docs/详设文档.md`，技术栈对比见`docs/架构选型对比.md`，前端与部署决策见`docs/前端与部署说明.md`，安全边界与门禁见`docs/安全边界与门禁.md`，逐轮进展见`docs/开发日志.md`。
 
