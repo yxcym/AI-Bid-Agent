@@ -4,18 +4,21 @@
 
 > 2026 AI 先锋未来人才大赛（飞书）参赛项目。当前为v1骨架版：mock 数据可完整演示全链路，真实站点抓取只需校准选择器后把`crawler.mock`改为`false`。
 
-## 快速开始
+## 快速开始（Docker，当前默认形态）
 
 ```powershell
 # 1. 首次：构建前端（node 18+，产物在 frontend/dist）
 cd frontend; npm install; npm run build; cd ..
 
-# 2. 启动（首次自动建虚拟环境并装依赖）
-.\run.ps1
+# 2. 起两个容器：nginx(80) 托管前端并把 /api/ 反代到 app(内网8000)
+docker compose -f deploy/docker-compose.yml up -d --build
 
-# 3. 浏览器打开 http://127.0.0.1:8000/ —— 点示例短语、点「执行全链路」、看统计与文档
-#    命令行等价操作见 docs/操作指南.md
+# 3. 浏览器打开 http://127.0.0.1/ —— 点示例短语、点「执行全链路」、看统计与文档
 ```
+
+Docker Desktop 已设为登录自启，容器策略`restart: unless-stopped`——重开电脑后无需任何手动操作，等引擎起来约十几秒即可访问。停止：`docker compose -f deploy/docker-compose.yml down`（不动`data/`、`output/`）。
+
+**无 Docker 的备选路径**：`.\run.ps1` 单进程直出，前端由 FastAPI 同源托管，访问 `http://127.0.0.1:8000/`。**两条路径共用`data/bidagent.db`，不可同时运行**（会出现两套调度器重复推送）。
 
 同一句话立即再执行 → 新增 0、不产新文档：这就是增量推送语义。前端形态与 nginx/docker 取舍见`docs/前端与部署说明.md`。
 
@@ -31,7 +34,7 @@ cd frontend; npm install; npm run build; cd ..
 | 多源采集 | `app/crawler/` | 站点列表页 → RawNotice | HTTP/Jsoup先行，登录态站点明确报错不静默失败 |
 | 清洗去重 | `app/pipeline/` | 剥广告、截断、指纹增量 | 标题＋归一化URL做MD5指纹 |
 | 文档生成 | `app/docx_gen/` | 新增条目 → Word | 中文宋体、英文Times New Roman分开设 |
-| 前端 | `frontend/` | Vue3＋Vite＋TS单页仪表盘 | 构建产物由后端同源托管，`run.ps1`单进程直出 |
+| 前端 | `frontend/` | Vue3＋Vite＋TS单页仪表盘 | 构建产物由 nginx 容器托管（`/api/` 反代到 app）；无 Docker 时退回后端同源托管 |
 
 外加`app/schedule/`（APScheduler定时）与`app/api/`（FastAPI薄路由层）。设计细节见`docs/详设文档.md`，技术栈对比见`docs/架构选型对比.md`，前端与部署决策见`docs/前端与部署说明.md`，逐轮进展见`docs/开发日志.md`。
 
