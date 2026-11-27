@@ -112,8 +112,9 @@ schedule:
 # 邮件推送：文档生成后自动把 Word + 摘要发到邮箱（增量语义：无新增不出文档、不发邮件）
 push:
   email:
-    # enabled=true 且凭据齐全（secrets.yaml 或本段）才会实际发信
-    enabled: false
+    # 默认开启：缺凭据时 ready=false（页面提示「缺凭据」），不会尝试发信、不产生报错
+    # 真值（发件邮箱/授权码/收件人）填到 config/secrets.yaml，本段保持空壳即可
+    enabled: true
     smtp_host: ""      # 留空按发件邮箱域名自动推断（qq/163/126/gmail/outlook…）
     smtp_port: 0       # 0 = 自动（465 走 SSL，587 走 STARTTLS）
     username: ""       # 发件邮箱，如 xxx@qq.com
