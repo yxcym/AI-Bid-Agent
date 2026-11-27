@@ -168,3 +168,61 @@ def test_hybrid_without_key_is_rule():
     assert h.name == "hybrid(no-llm)"
     intent = h.parse("最近3个月的合肥充电桩招标信息", [_site()])
     assert intent.keyword == "充电桩"
+
+
+# ---------------------------------------------------------------- 多厂商兼容
+
+class _FakeResp:
+    def raise_for_status(self):
+        pass
+
+    def json(self):
+        return {"choices": [{"message": {"content": '{"keyword":"充电桩","region":"合肥"}'}}]}
+
+
+class _FakeClient:
+    """捕获最近一次请求的 url/body/headers，验证请求构造符合 OpenAI 兼容协议。"""
+
+    last_url = last_body = last_headers = None
+
+    def __init__(self, timeout=None):
+        pass
+
+    def __enter__(self):
+        return self
+
+    def __exit__(self, *args):
+        return False
+
+    def post(self, url, json=None, headers=None):
+        _FakeClient.last_url = url
+        _FakeClient.last_body = json
+        _FakeClient.last_headers = headers
+        return _FakeResp()
+
+
+@pytest.mark.parametrize(
+    "base_url,model,expect_url",
+    [
+        # DeepSeek：默认值，协议即 OpenAI 本体
+        ("https://api.deepseek.com/v1", "deepseek-chat", "https://api.deepseek.com/v1/chat/completions"),
+        # 豆包/火山方舟：base_url 到 /api/v3，model 填推理接入点 ID（ep- 开头）
+        ("https://ark.cn-beijing.volces.com/api/v3", "ep-20260101-12345", "https://ark.cn-beijing.volces.com/api/v3/chat/completions"),
+        # base_url 带尾斜杠也能拼对（rstrip 容错）
+        ("https://ark.cn-beijing.volces.com/api/v3/", "ep-20260101-12345", "https://ark.cn-beijing.volces.com/api/v3/chat/completions"),
+        # 通义千问：compatible-mode 即 OpenAI 兼容层
+        ("https://dashscope.aliyuncs.com/compatible-mode/v1", "qwen-plus", "https://dashscope.aliyuncs.com/compatible-mode/v1/chat/completions"),
+    ],
+    ids=["deepseek", "ark", "ark-trailing-slash", "dashscope"],
+)
+def test_provider_compat(monkeypatch, base_url, model, expect_url):
+    """换厂商 = 换两个配置值，代码零改动。逐家验证 URL 拼接、model 透传、Bearer 鉴权。"""
+    monkeypatch.setattr("app.intent.llm_parser.httpx.Client", _FakeClient)
+    p = LlmIntentParser(LlmSection(api_key="k", base_url=base_url, model=model))
+    intent = p.parse("合肥充电桩招标信息", [_site()])
+    assert _FakeClient.last_url == expect_url
+    assert _FakeClient.last_body["model"] == model
+    assert _FakeClient.last_headers["Authorization"] == "Bearer k"
+    assert _FakeClient.last_body["temperature"] == 0
+    assert _FakeClient.last_body["messages"][0]["role"] == "system"
+    assert intent.keyword == "充电桩"
