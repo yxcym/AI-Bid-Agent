@@ -93,39 +93,42 @@ class RuleIntentParser:
 # ---------------------------------------------------------------- 频率
 
 def _extract_frequency(text: str) -> tuple[str | None, str | None]:
-    """返回 (频率原文, 标准 cron)。cron 五段: 分 时 日 月 周（周日=0）。"""
+    """返回 (频率原文, 标准 cron)。cron 五段: 分 时 日 月 周（周日=0）。
 
-    # 每天 9:00 / 每日上午9点30
-    m = re.search(r"每(?:天|日)\s*(上午|下午|晚上|中午)?\s*(\d{1,2})\s*(?:[:：点]\s*(\d{1,2})?)?", text)
-    if m:
-        hour = int(m.group(2))
-        minute = int(m.group(3) or 0)
-        period = m.group(1)
+    时段词含"早上/凌晨/清晨"；分钟支持"半"（8点半=8:30）。
+    缺这两样时，"每天早上8点半"这类高频口语会静默不注册定时——比报错更坑。
+    """
+    periods = r"(上午|中午|下午|晚上|早上|清晨|凌晨)?"
+
+    def _to_24h(period: str | None, hour: int) -> int:
         if period in ("下午", "晚上") and hour < 12:
-            hour += 12
+            return hour + 12
         if period == "中午" and hour < 11:
-            hour += 12
+            return hour + 12
+        return hour  # 上午/早上/清晨/凌晨不偏移
+
+    # 每天 9:00 / 每天早上8点半 / 每天上午9点30
+    m = re.search(r"每(?:天|日)\s*" + periods + r"\s*(\d{1,2})\s*(?:[:：点]\s*(半|\d{1,2})?)?", text)
+    if m:
+        hour = _to_24h(m.group(1), int(m.group(2)))
+        minute = 30 if m.group(3) == "半" else int(m.group(3) or 0)
         if 0 <= hour <= 23 and 0 <= minute <= 59:
             return m.group(0).strip(), f"{minute} {hour} * * *"
 
-    # 每周一 9:00
-    m = re.search(r"每(?:周|星期)\s*([一二三四五六日天])\s*(上午|下午|晚上)?\s*(\d{1,2})\s*(?:[:：点]\s*(\d{1,2})?)?", text)
+    # 每周一 9:00 / 每周一早上8点半
+    m = re.search(r"每(?:周|星期)\s*([一二三四五六日天])\s*" + periods + r"\s*(\d{1,2})\s*(?:[:：点]\s*(半|\d{1,2})?)?", text)
     if m:
         weekday = _WEEKDAY_CRON.get(m.group(1), "1")
-        hour = int(m.group(3))
-        minute = int(m.group(4) or 0)
-        if m.group(2) in ("下午", "晚上") and hour < 12:
-            hour += 12
+        hour = _to_24h(m.group(2), int(m.group(3)))
+        minute = 30 if m.group(4) == "半" else int(m.group(4) or 0)
         return m.group(0).strip(), f"{minute} {hour} * * {weekday}"
 
     # 每月 1 号 9:00
-    m = re.search(r"每(?:个)?月\s*(\d{1,2})\s*[号日]\s*(上午|下午|晚上)?\s*(\d{1,2})\s*(?:[:：点]\s*(\d{1,2})?)?", text)
+    m = re.search(r"每(?:个)?月\s*(\d{1,2})\s*[号日]\s*" + periods + r"\s*(\d{1,2})\s*(?:[:：点]\s*(半|\d{1,2})?)?", text)
     if m:
         day = int(m.group(1))
-        hour = int(m.group(3))
-        minute = int(m.group(4) or 0)
-        if m.group(2) in ("下午", "晚上") and hour < 12:
-            hour += 12
+        hour = _to_24h(m.group(2), int(m.group(3)))
+        minute = 30 if m.group(4) == "半" else int(m.group(4) or 0)
         return m.group(0).strip(), f"{minute} {hour} {day} * *"
 
     # 每小时

@@ -27,6 +27,7 @@ from app.pipeline.dedup import SqliteFingerprintStore
 from app.pipeline.service import PipelineService
 from app.push.emailer import EmailPusher
 from app.schedule.scheduler import TaskScheduler
+from app.schedule.store import SqliteJobStore
 
 logging.basicConfig(
     level=logging.INFO,
@@ -45,8 +46,9 @@ class AppContext:
         self.crawler = build_crawler(config)
         self.cleaner = RuleCleaner(config)
         self.dedup = SqliteFingerprintStore(config.db_path())
+        self.jobstore = SqliteJobStore(config.db_path())
         self.docgen = WordDocGenerator(config)
-        self.scheduler = TaskScheduler(config)
+        self.scheduler = TaskScheduler(config, self.jobstore)
         self.pusher = EmailPusher(config)
         self.pipeline = PipelineService(
             config=config,
@@ -83,14 +85,16 @@ async def lifespan(app: FastAPI):
     ctx = AppContext(config)
     app.state.ctx = ctx
     ctx.scheduler.start()
+    restored = ctx.scheduler.restore()
     log.info(
-        "启动完成 | mock=%s | 站点=%d | 指纹=%d | 解析器=%s | 邮件推送=%s（凭据来源：%s）",
+        "启动完成 | mock=%s | 站点=%d | 指纹=%d | 解析器=%s | 邮件推送=%s（凭据来源：%s）| 定时任务恢复=%d",
         config.crawler.mock,
         len(config.enabled_sites()),
         ctx.dedup.count(),
         ctx.parser.name,
         "就绪" if ctx.pusher.enabled else ("未配置" if config.push.email.enabled else "未启用"),
         credential_source(),
+        restored,
     )
     yield
     ctx.scheduler.shutdown()
