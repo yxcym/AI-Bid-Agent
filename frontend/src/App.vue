@@ -182,8 +182,9 @@ async function testPush() {
   loading.push = true
   try {
     const res = await api.testPush()
-    pushOk.value = true
-    pushMsg.value = `测试邮件已发送至 ${res.to}`
+    pushOk.value = res.errors.length === 0
+    const ok = res.sent.length ? `已发送：${res.sent.join('、')}` : '无渠道发送'
+    pushMsg.value = res.errors.length ? `${ok}；失败：${res.errors.join('；')}` : ok
   } catch (e) {
     pushOk.value = false
     pushMsg.value = (e as Error).message
@@ -238,8 +239,17 @@ function docUrl(path: string | null): string {
           >
             <i class="dot"></i>{{ health.push ? (health.push.ready ? '邮件就绪' : health.push.enabled ? '邮件缺凭据' : '邮件未启用') : '邮件未启用' }}
           </span>
+          <template v-for="w in health.push_webhook || []" :key="w.kind">
+            <span
+              class="pill"
+              :class="w.ready ? 'pill-ok' : w.enabled ? 'pill-warn' : 'pill-muted'"
+              :title="w.ready ? `${w.label}webhook 已配置${w.signed ? '（含加签）' : '（未加签）'}` : `未配置 ${w.label} webhook 地址`"
+            >
+              <i class="dot"></i>{{ w.ready ? `${w.label}就绪` : w.enabled ? `${w.label}缺地址` : `${w.label}未启用` }}
+            </span>
+          </template>
           <button class="btn btn-dark btn-sm" :disabled="loading.push" @click="testPush">
-            {{ loading.push ? '发送中…' : '测试邮件' }}
+            {{ loading.push ? '发送中…' : '推送自测' }}
           </button>
           <button class="btn btn-dark btn-sm" @click="clearFingerprints">清空指纹</button>
           <button class="btn btn-dark btn-sm" :disabled="loading.meta" @click="refreshMeta">刷新</button>
@@ -336,7 +346,7 @@ function docUrl(path: string | null): string {
           <a class="btn btn-sm" :href="docUrl(result.doc_path)" target="_blank">下载 Word</a>
         </p>
         <p v-if="result.pushed_to?.length" class="note">
-          邮件已推送至 <code>{{ result.pushed_to.join('、') }}</code>（Word 附件＋条目速览）
+          已推送至 <code>{{ result.pushed_to.join('、') }}</code>（邮件含 Word 附件，群机器人为条目标题速览）
         </p>
         <ul v-if="result.warnings.length" class="warnings">
           <li v-for="w in result.warnings" :key="w">{{ w }}</li>

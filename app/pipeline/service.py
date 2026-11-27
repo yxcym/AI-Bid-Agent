@@ -34,6 +34,7 @@ class PipelineService:
         docgen: WordDocGenerator,
         scheduler: TaskScheduler,
         pusher: Any | None = None,
+        pushers: list[Any] | None = None,
     ) -> None:
         self._config = config
         self._parser = parser
@@ -42,8 +43,9 @@ class PipelineService:
         self._dedup = dedup
         self._docgen = docgen
         self._scheduler = scheduler
-        # 推送器走鸭子类型（.enabled / .send_digest），换短信/webhook 渠道不用改这里
-        self._pusher = pusher
+        # 推送器走鸭子类型（.enabled / .send_digest / .label），换短信/webhook 渠道不用改这里。
+        # 多通道并行推送：任一渠道失败只记 warning，不拖累其它渠道与主链路。
+        self._pushers: list[Any] = [p for p in (pusher, *(pushers or [])) if p is not None]
 
     def parse_only(self, query: str) -> ParsedIntent:
         return self._parser.parse(query, self._config.enabled_sites())
@@ -93,11 +95,14 @@ class PipelineService:
                 path = self._docgen.generate(intent, fresh)
                 result.doc_path = _display_path(path)
                 # ---- 推送：文档生成了就送达（无文档即无新增，天然免打扰） ----
-                if self._pusher is not None and self._pusher.enabled:
+                for pusher in self._pushers:
+                    if not pusher.enabled:
+                        continue
                     try:
-                        result.pushed_to.append(self._pusher.send_digest(intent, fresh, path))
+                        result.pushed_to.append(pusher.send_digest(intent, fresh, path))
                     except Exception as exc:
-                        result.warnings.append(f"邮件推送失败：{exc}")
+                        channel = getattr(pusher, "label", "推送")
+                        result.warnings.append(f"{channel}推送失败：{exc}")
             else:
                 result.warnings.append("本轮无新增条目，未生成文档（增量推送语义）")
 

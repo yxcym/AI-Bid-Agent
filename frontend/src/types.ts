@@ -51,6 +51,15 @@ export interface PushStatus {
   recipients: number
 }
 
+/** 群机器人通道状态（飞书 / 钉钉），后端 push_webhook 数组元素 */
+export interface WebhookStatus {
+  kind: 'feishu' | 'dingtalk'
+  label: string
+  enabled: boolean
+  ready: boolean
+  signed: boolean
+}
+
 export interface Health {
   status: string
   mock: boolean
@@ -60,6 +69,7 @@ export interface Health {
   scheduled_jobs: number
   output_dir: string
   push?: PushStatus
+  push_webhook?: WebhookStatus[]
 }
 
 export interface Job {

@@ -128,3 +128,20 @@ push:
     to_addrs: []       # 收件人列表，可多个
     max_items_in_digest: 8
     timeout_seconds: 20
+
+  # 群机器人推送：与邮件并行，任一渠道失败只记 warning，不影响其它渠道
+  # 地址与加签密钥【不要写在这里】——填到 config/secrets.yaml（已 gitignore）
+  # 正文条数默认 5 条（群消息阅读场景，卡片式滚动比邮件更短更合适）
+  feishu:
+    enabled: true           # 本段开关；webhook_url 为空时视为未配置，health 显示 ready=false
+    webhook_url: ""
+    secret: ""              # 机器人「签名校验」密钥；只开关键词校验时留空
+    max_items_in_digest: 5
+    timeout_seconds: 15
+
+  dingtalk:
+    enabled: true
+    webhook_url: ""
+    secret: ""
+    max_items_in_digest: 5
+    timeout_seconds: 15

@@ -2,7 +2,7 @@
 
 一个基于自然语言驱动的招投标信息聚合引擎：一句话进，结构化 Word 出。覆盖「意图解析 → 多源抓取 → 清洗去重 → 文档生成 → 定时推送」全链路。
 
-> 2026 AI 先锋未来人才大赛（飞书）参赛项目。真实站点抓取已接入（5 个站点），指纹增量去重、cron 定时与邮件推送齐备；意图解析为 hybrid 模式（规则打底，LLM 补空缺字段，无 key 自动降级）；提供 Docker 双容器、单文件 exe、run.ps1 三种交付形态。
+> 2026 AI 先锋未来人才大赛（飞书）参赛项目。真实站点抓取已接入（5 个站点），指纹增量去重、cron 定时与邮件/飞书/钉钉三通道推送齐备；意图解析为 hybrid 模式（规则打底，LLM 补空缺字段，无 key 自动降级）；提供 Docker 双容器、单文件 exe、run.ps1 三种交付形态。
 
 ## 快速开始（Docker，当前默认形态）
 
@@ -55,6 +55,7 @@ Docker Desktop 已设为登录自启，容器策略`restart: unless-stopped`—�
 - [x] Vue 3 前端仪表盘（nginx 托管 / 后端同源托管）
 - [x] hybrid 意图解析（规则打底，LLM 补空缺；兼容 DeepSeek/火山方舟/千问/智谱等 OpenAI 兼容 API）
 - [x] 邮件推送（SMTP，凭据走 secrets.yaml）
+- [x] 群机器人推送（飞书 post / 钉钉 markdown，双通道各自开关，支持加签与聚合自测）
 - [x] Docker 双容器门禁部署（secrets 只读挂载、审计脚本）
 - [x] PyInstaller 单文件 exe（双击即用，无需 Python/Docker/Node）
 - [ ] Playwright登录态侧车（`demo_login`站点占位）

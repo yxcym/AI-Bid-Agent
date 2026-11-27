@@ -10,6 +10,7 @@ from pydantic import BaseModel, Field
 
 from app.common.errors import BizException
 from app.push.emailer import EmailPushError
+from app.push.webhook import WebhookPushError
 
 router = APIRouter(prefix="/api", tags=["bid-agent"])
 
@@ -46,6 +47,7 @@ def health(request: Request) -> dict:
         "scheduled_jobs": len(ctx.scheduler.list_jobs()),
         "output_dir": str(cfg.output_path()),
         "push": ctx.pusher.status(),
+        "push_webhook": ctx.webhook.status(),
     }
     # 统一信封：前端解包逻辑要求 {success, data}，裸dict会被前端判为失败
     return {"success": True, "data": data}
@@ -81,13 +83,29 @@ def clear_fingerprints(request: Request) -> dict:
 
 @router.post("/push/test")
 def test_push(request: Request) -> dict:
-    """发一封连通性测试邮件：不用等真实抓取，填完凭据即可验配置。"""
+    """给所有已启用渠道各发一条连通性测试（邮件 + 飞书/钉钉群），不用等真实抓取。"""
     ctx = _ctx(request)
-    try:
-        to = ctx.pusher.send_test()
-    except EmailPushError as exc:
-        raise BizException(str(exc)) from exc
-    return {"success": True, "message": f"测试邮件已发送至 {to}", "data": {"to": to}}
+    sent: list[str] = []
+    errors: list[str] = []
+    if ctx.pusher.enabled:
+        try:
+            sent.append(f"邮件→{ctx.pusher.send_test()}")
+        except EmailPushError as exc:
+            errors.append(str(exc))
+    if ctx.webhook.enabled:
+        try:
+            sent.append(f"群机器人→{ctx.webhook.send_test()}")
+        except WebhookPushError as exc:
+            errors.append(str(exc))
+    if not sent and not errors:
+        raise BizException("没有任何已启用的推送渠道：先在 config/secrets.yaml 填邮件凭据或 webhook 地址")
+    if errors and not sent:
+        raise BizException("；".join(errors))
+    return {
+        "success": True,
+        "message": "已发送：" + "、".join(sent) + ("；失败：" + "；".join(errors) if errors else ""),
+        "data": {"sent": sent, "errors": errors},
+    }
 
 
 # ---------------------------------------------------------------- 定时任务

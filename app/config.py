@@ -148,8 +148,21 @@ class EmailPushSection(BaseModel):
     timeout_seconds: int = 20
 
 
+class WebhookChannelSection(BaseModel):
+    """群机器人通道（飞书 / 钉钉）。webhook 地址与加签密钥属敏感项：
+    放 config/secrets.yaml（gitignore）或环境变量，config.yaml 保持空壳。"""
+
+    enabled: bool = False
+    webhook_url: str = ""
+    secret: str = ""  # 机器人「加签」密钥；未启用加签时留空
+    max_items_in_digest: int = 5
+    timeout_seconds: float = 15.0
+
+
 class PushSection(BaseModel):
     email: EmailPushSection = Field(default_factory=EmailPushSection)
+    feishu: WebhookChannelSection = Field(default_factory=WebhookChannelSection)
+    dingtalk: WebhookChannelSection = Field(default_factory=WebhookChannelSection)
 
 
 class AppConfig(BaseModel):

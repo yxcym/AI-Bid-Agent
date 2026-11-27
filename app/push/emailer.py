@@ -49,6 +49,8 @@ class EmailPushError(Exception):
 
 
 class EmailPusher:
+    label = "邮件"
+
     def __init__(self, config: AppConfig) -> None:
         self._cfg = config.push.email
 

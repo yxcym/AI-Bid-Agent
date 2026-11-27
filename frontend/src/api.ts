@@ -2,9 +2,10 @@
 
 import type { FileItem, Health, Job, ParsedIntent, PipelineResult } from './types'
 
-/** 推送测试返回结构 */
+/** 推送测试返回结构：多渠道聚合，sent/errors 各自成列 */
 export interface PushTestResult {
-  to: string
+  sent: string[]
+  errors: string[]
 }
 
 async function request<T>(url: string, init?: RequestInit): Promise<T> {
