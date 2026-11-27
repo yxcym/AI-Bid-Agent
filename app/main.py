@@ -16,7 +16,7 @@ from fastapi.staticfiles import StaticFiles
 
 from app.api.routes import router
 from app.common.errors import BizException
-from app.config import PROJECT_ROOT, AppConfig, load_config
+from app.config import PROJECT_ROOT, AppConfig, credential_source, load_config
 from app.crawler.registry import build_crawler
 from app.docx_gen.generator import WordDocGenerator
 from app.intent.base import IntentParser
@@ -84,12 +84,13 @@ async def lifespan(app: FastAPI):
     app.state.ctx = ctx
     ctx.scheduler.start()
     log.info(
-        "启动完成 | mock=%s | 站点=%d | 指纹=%d | 解析器=%s | 邮件推送=%s",
+        "启动完成 | mock=%s | 站点=%d | 指纹=%d | 解析器=%s | 邮件推送=%s（凭据来源：%s）",
         config.crawler.mock,
         len(config.enabled_sites()),
         ctx.dedup.count(),
         ctx.parser.name,
         "就绪" if ctx.pusher.enabled else ("未配置" if config.push.email.enabled else "未启用"),
+        credential_source(),
     )
     yield
     ctx.scheduler.shutdown()

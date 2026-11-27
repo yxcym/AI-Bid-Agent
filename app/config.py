@@ -6,6 +6,8 @@
 
 from __future__ import annotations
 
+import os
+import re
 from functools import lru_cache
 from pathlib import Path
 
@@ -128,6 +130,40 @@ class AppConfig(BaseModel):
 
 SECRETS_PATH = CONFIG_PATH.parent / "secrets.yaml"
 
+# 环境变量通道：优先级最高，用于容器/CI/临时覆盖——凭据不落盘。
+# 本机双击启动（启动.bat）拿不到临时 shell 变量，持久化需 setx（写入用户环境，随账户长期存在）。
+ENV_SMTP_ENABLED = "BIDAGENT_SMTP_ENABLED"
+ENV_SMTP_USERNAME = "BIDAGENT_SMTP_USERNAME"
+ENV_SMTP_PASSWORD = "BIDAGENT_SMTP_PASSWORD"
+ENV_SMTP_TO = "BIDAGENT_SMTP_TO"  # 逗号/分号/空白分隔，可多个收件人
+
+
+def _env_push_overrides() -> dict:
+    """只收集真正设置过的键，没设的键不参与覆盖（避免空字符串把文件里的值冲掉）。"""
+    out: dict = {}
+    raw_enabled = os.getenv(ENV_SMTP_ENABLED)
+    if raw_enabled and raw_enabled.strip():
+        out["enabled"] = raw_enabled.strip().lower() in {"1", "true", "yes", "on"}
+    for env_name, key in ((ENV_SMTP_USERNAME, "username"), (ENV_SMTP_PASSWORD, "password")):
+        value = os.getenv(env_name)
+        if value and value.strip():
+            out[key] = value.strip()
+    raw_to = os.getenv(ENV_SMTP_TO)
+    if raw_to and raw_to.strip():
+        parts = [p for p in re.split(r"[,;，；\s]+", raw_to.strip()) if p]
+        if parts:
+            out["to_addrs"] = parts
+    return out
+
+
+def credential_source() -> str:
+    """凭据当前来自哪里——启动日志与排障用，不打印具体值。"""
+    if os.getenv(ENV_SMTP_PASSWORD, "").strip():
+        return f"环境变量 {ENV_SMTP_PASSWORD}"
+    if SECRETS_PATH.exists():
+        return "config/secrets.yaml"
+    return "config/config.yaml（明文占位，未配置真实凭据）"
+
 
 def _deep_merge(base: dict, override: dict) -> dict:
     """secrets.yaml 只该有少数敏感键，深合并进主配置，其它结构不动。"""
@@ -152,4 +188,9 @@ def load_config(path: Path | None = None) -> AppConfig:
         with SECRETS_PATH.open("r", encoding="utf-8") as f:
             secrets = yaml.safe_load(f) or {}
         raw = _deep_merge(raw, secrets)
+    # 环境变量优先级最高：显式指定路径（测试/多环境）时不读环境，保证可复现
+    if path is None:
+        env_overrides = _env_push_overrides()
+        if env_overrides:
+            raw = _deep_merge(raw, {"push": {"email": env_overrides}})
     return AppConfig.model_validate(raw)
