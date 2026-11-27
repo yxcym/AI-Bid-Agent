@@ -5,6 +5,7 @@ from __future__ import annotations
 import json
 from datetime import date
 
+import httpx
 import pytest
 
 from app.config import LlmSection, SiteConfig
@@ -226,3 +227,53 @@ def test_provider_compat(monkeypatch, base_url, model, expect_url):
     assert _FakeClient.last_body["temperature"] == 0
     assert _FakeClient.last_body["messages"][0]["role"] == "system"
     assert intent.keyword == "充电桩"
+
+
+# ---------------------------------------------------------------- 429 限流退避
+
+def _fake_429_response() -> httpx.Response:
+    req = httpx.Request("POST", "https://example.com/v1/chat/completions")
+    return httpx.Response(429, request=req)
+
+
+class _Flaky429Client:
+    """前 n 次返回 429，之后返回 200。"""
+
+    def __init__(self, timeout=None):
+        self.calls = 0
+
+    def __enter__(self):
+        return self
+
+    def __exit__(self, *args):
+        return False
+
+    def post(self, url, json=None, headers=None):
+        self.calls += 1
+        if self.calls <= _Flaky429Client.fail_times:
+            raise httpx.HTTPStatusError("429", request=httpx.Request("POST", url), response=_fake_429_response())
+        return _FakeResp()
+
+
+def test_rate_limit_retry_recovers(monkeypatch):
+    """429 后退避重试，第二次成功——高峰期挤兑窗口被吃掉。"""
+    slept = []
+    monkeypatch.setattr("app.intent.llm_parser.time.sleep", lambda s: slept.append(s))
+    monkeypatch.setattr("app.intent.llm_parser.httpx.Client", _Flaky429Client)
+    _Flaky429Client.fail_times = 1
+    p = LlmIntentParser(LlmSection(api_key="k"))
+    intent = p.parse("合肥充电桩招标信息", [_site()])
+    assert intent.keyword == "充电桩"
+    assert slept == [15.0]
+
+
+def test_rate_limit_exhausted_still_raises(monkeypatch):
+    """3 次全 429 → 异常照常冒泡（hybrid 层降级 rule-only），共 3 次请求 2 次退避。"""
+    slept = []
+    monkeypatch.setattr("app.intent.llm_parser.time.sleep", lambda s: slept.append(s))
+    monkeypatch.setattr("app.intent.llm_parser.httpx.Client", _Flaky429Client)
+    _Flaky429Client.fail_times = 99
+    p = LlmIntentParser(LlmSection(api_key="k"))
+    with pytest.raises(httpx.HTTPStatusError):
+        p.parse("合肥充电桩招标信息", [_site()])
+    assert len(slept) == 2

@@ -17,6 +17,7 @@ import json
 import logging
 import os
 import re
+import time
 from datetime import date
 
 import httpx
@@ -28,6 +29,11 @@ from app.models import ParsedIntent
 
 NAME = "llm"
 log = logging.getLogger("bidagent")
+
+# 免费模型（如智谱 Flash 系列）高峰期会返回 429 平台限流（code 1305），限流窗口为分钟级；
+# 短退避多撞几次窗口能把高峰期成功率拉回来，试尽仍 429 则照常降级 rule-only。
+_RATE_LIMIT_RETRIES = 2
+_RATE_LIMIT_BACKOFF_SECONDS = 15.0
 
 _PROMPT_TEMPLATE = """你是招投标信息检索的意图解析器。把用户的一句话拆成 JSON，只输出一个 JSON 对象，不要解释、不要 Markdown 代码块。
 今天的日期是 {today}。所有相对时间（如"最近3个月""上个月"）都必须以今天为基准换算成具体日期。
@@ -98,8 +104,20 @@ class LlmIntentParser:
         }
         headers = {"Authorization": f"Bearer {self.api_key}"}
         with httpx.Client(timeout=self.timeout) as client:
-            resp = client.post(url, json=body, headers=headers)
-            resp.raise_for_status()
+            resp = None
+            for attempt in range(_RATE_LIMIT_RETRIES + 1):
+                try:
+                    resp = client.post(url, json=body, headers=headers)
+                    resp.raise_for_status()
+                    break
+                except httpx.HTTPStatusError as exc:
+                    if exc.response.status_code != 429 or attempt == _RATE_LIMIT_RETRIES:
+                        raise
+                    log.warning(
+                        "LLM 限流(429)，%.0f 秒后重试（%d/%d）",
+                        _RATE_LIMIT_BACKOFF_SECONDS, attempt + 1, _RATE_LIMIT_RETRIES,
+                    )
+                    time.sleep(_RATE_LIMIT_BACKOFF_SECONDS)
             content = resp.json()["choices"][0]["message"]["content"]
         return _extract_json(content)
 
