@@ -119,6 +119,24 @@ if ($isGithub) {
 }
 else { Add-Result '7' '远端仓库可见性' $true "origin=$remote（非 GitHub 或未配置）" }
 
+# ---------- 8. 历史提交里的真实邮箱（提示项，不阻断） ----------
+# 当前版本干净不代表历史干净：旧提交的 diff 仍可被翻出来。要彻底清除只能重写历史 + force push。
+$histMailHits = @()
+foreach ($m in $SecretMails) {
+    foreach ($rev in $allRevs) {
+        $found = git grep -I -F -l -- $m $rev 2>$null
+        if ($found) { $histMailHits += $found }
+    }
+}
+$histMailHits = @($histMailHits | Sort-Object -Unique)
+if ($histMailHits.Count -eq 0) {
+    Add-Result '8' '历史提交中的真实邮箱' $true '零命中（当前版本与历史都干净）'
+}
+else {
+    Add-Result '8' '历史提交中的真实邮箱（提示）' $true `
+        "命中 $($histMailHits.Count) 个版本：$((($histMailHits | ForEach-Object { ($_ -split '[: ]')[0] }) | Select-Object -Unique) -join ', ') —— 当前版本已脱敏，历史需重写才能清除（不影响退出码）"
+}
+
 # ---------- 汇总 ----------
 $failed = @($results | Where-Object { $_.结果 -eq 'FAIL' })
 $results | Format-Table -AutoSize -Wrap | Out-String | Write-Host
