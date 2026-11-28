@@ -101,3 +101,28 @@ def test_parse_relative_date_days():
     intent = _p().parse("最近7天的合肥充电桩", [_site()])
     assert intent.start_date == date.today() - timedelta(days=7)
     assert intent.time_range_text == "最近7天"
+
+
+# ---------------------------------------------------------------- 取词：剥泛词（第三十六轮）
+
+def test_keyword_prefers_concrete_over_generic():
+    """“充电站 建设 招标”以前取到“建设”，搜出来一堆不相关；现在取“充电站”。"""
+    assert _p().parse("充电站 建设 招标", [_site()]).keyword == "充电站"
+
+
+def test_keyword_strips_generic_tail():
+    assert _p().parse("合肥高标准农田建设项目", [_site()]).keyword == "高标准农田"
+    assert _p().parse("储能电站项目招标", [_site()]).keyword == "储能电站"
+    assert _p().parse("最近1周的合肥服务器采购公告", [_site()]).keyword == "服务器"
+
+
+def test_keyword_all_generic_returns_empty():
+    """整句没有主题词时返回空，让上层提示用户，而不是拿去搜“公告”。"""
+    assert _p().parse("帮我找一下最近的招标公告", [_site()]).keyword == ""
+
+
+def test_keyword_keeps_multi_char_topic():
+    """正常主题词不受影响。"""
+    assert _p().parse("最近3个月的上海充电桩招标信息", [_site()]).keyword == "充电桩"
+    assert _p().parse("最近一个月的电梯招标", [_site()]).keyword == "电梯"
+

@@ -192,6 +192,19 @@ def _extract_region(text: str) -> tuple[str | None, str | None]:
 
 # ---------------------------------------------------------------- 关键词
 
+# 主题词尾部的泛词：留着它们会让搜索变成"全网找含'建设'二字的公告"
+_TAIL_GENERIC_RE = re.compile(
+    r"(?:建设|工程|项目|采购|招标|投标|施工|安装|调试|服务|设备|货物|总承包|信息|公告|汇总|情况|相关"
+    r"|最近|最新|近期|目前|现在|有关|关于)+$"
+)
+
+
+def _trim_generic(segment: str) -> str:
+    """剥掉尾部的“的”和泛词；剥完不足两个字就返回空（说明这段本身没信息量）。"""
+    trimmed = _TAIL_GENERIC_RE.sub("", segment.strip("的")).strip("的")
+    return trimmed if len(trimmed) >= 2 else ""
+
+
 def _extract_keyword(text: str) -> str:
     for noise in NOISE_WORDS:
         text = text.replace(noise, " ")
@@ -204,13 +217,31 @@ def _extract_keyword(text: str) -> str:
             head = text[:idx]
             break
 
-    # 只留中英文数字，切成片段，取最后一段（离业务主题最近）
+    # 只留中英文数字，切成片段
     parts = re.findall(r"[\u4e00-\u9fa5A-Za-z0-9]+", head)
     if not parts:
         return ""
-    candidate = parts[-1].strip("的")
+
+    # 从后往前找“剥掉泛词后还有内容”的那一段：业务主题一般在最后，
+    # 但最后一段常常是“建设/招标/采购”这种放之四海皆准的词
+    picked = ""
+    for seg in reversed(parts):
+        candidate = _trim_generic(seg)
+        if candidate:
+            picked = candidate
+            break
+
+    if not picked:
+        # 整句都是泛词（例如只说“最近的招标公告”），剥完仍没东西就返回空，
+        # 让上层直接提示用户补主题，而不是拿去全网搜“公告”两个字
+        fallback = _TAIL_GENERIC_RE.sub("", parts[-1].strip("的")).strip("的")
+        picked = fallback if len(fallback) >= 2 else ""
+
+    if not picked:
+        return ""
+
     # 太长的通常是残留偏正结构，取尾部 8 个字
-    return candidate[-8:] if len(candidate) > 8 else candidate
+    return picked[-8:] if len(picked) > 8 else picked
 
 
 def _match_sites(query: str, available_sites: list[SiteConfig]) -> list[str]:

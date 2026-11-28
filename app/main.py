@@ -14,6 +14,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 from fastapi.staticfiles import StaticFiles
 
+from app import __version__
 from app.api.routes import router
 from app.common.errors import BizException
 from app.config import (
@@ -128,7 +129,7 @@ async def lifespan(app: FastAPI):
 app = FastAPI(
     title="AI-Bid-Agent",
     description="招投标信息智能聚合 Agent —— 自然语言进，结构化 Word 出",
-    version="1.0.0",
+    version=__version__,
     lifespan=lifespan,
 )
 app.add_middleware(

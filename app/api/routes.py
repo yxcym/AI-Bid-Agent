@@ -8,6 +8,7 @@ from fastapi import APIRouter, Request
 from fastapi.responses import FileResponse
 from pydantic import BaseModel, Field
 
+from app import __version__ as APP_VERSION
 from app.common.errors import BizException
 from app.push.emailer import EmailPushError
 from app.push.webhook import WebhookPushError
@@ -43,6 +44,7 @@ def health(request: Request) -> dict:
     cfg = ctx.config
     data = {
         "status": "ok",
+        "version": APP_VERSION,
         "mock": cfg.crawler.mock,
         "demo_mode": cfg.app.demo_mode,
         "parser": ctx.parser.name,
