@@ -31,7 +31,7 @@ Docker Desktop 已设为登录自启，容器策略`restart: unless-stopped`—�
 | 模块 | 目录 | 职责 | 关键决策 |
 |---|---|---|---|
 | 意图解析 | `app/intent/` | 原话 → 结构化意图 | 规则解析打底，LLM解析器预留且失败自动回退 |
-| 多源采集 | `app/crawler/` | 站点列表页 → RawNotice | HTTP/Jsoup先行，登录态站点明确报错不静默失败 |
+| 多源采集 | `app/crawler/` | 站点列表页 → RawNotice | HTTP 直连优先、Playwright 渲染兜底；登录态站点明确报错不静默失败 |
 | 清洗去重 | `app/pipeline/` | 剥广告、截断、指纹增量 | 标题＋归一化URL做MD5指纹 |
 | 文档生成 | `app/docx_gen/` | 新增条目 → Word | 中文宋体、英文Times New Roman分开设 |
 | 前端 | `frontend/` | Vue3＋Vite＋TS单页仪表盘（ECharts可视化，按需分包） | 构建产物由 nginx 容器托管（`/api/` 反代到 app）；无 Docker 时退回后端同源托管 |
@@ -59,10 +59,13 @@ Docker Desktop 已设为登录自启，容器策略`restart: unless-stopped`—�
 - [x] 模型摘要（新增条目里挑重点＋理由＋风险；只让模型输出编号，标题链接由代码回填防编造）
 - [x] Docker 双容器门禁部署（secrets 只读挂载、审计脚本）
 - [x] PyInstaller 单文件 exe（双击即用，无需 Python/Docker/Node）
-- [ ] Playwright登录态侧车（`demo_login`站点占位）
-- [ ] 演示模式（禁写接口的只读开关）
+- [x] 运行历史趋势（`run_history` 表＋`/api/history/daily` 按天聚合补零＋前端折线卡，按 Asia/Shanghai 计日）
+- [x] 演示模式（`app.demo_mode`：禁推送自测/清指纹/删任务/定时注册，前端显示只读药丸）
+- [x] Playwright 渲染引擎（`engine: playwright`，中国政府采购网已启用并实测过 WAF；exe 形态缺包自动降级为 warning）
+- [x] Basic Auth 局域网形态（`docker-compose.auth.yml`＋`nginx-auth.conf`）＋容器镜像离线包（约590MB）
+- [ ] 登录态站点真接入（`demo_login` 为占位域名；经核查"至少1个登录站点"出自方案稿自设指标，非赛题硬性要求，按可选增强处理，见`docs/进度与选型.md`第六节）
 
-明确边界：仅绑 127.0.0.1 回环地址；无鉴权与并发控制，不建议直接暴露公网。
+明确边界：默认仅绑 127.0.0.1 回环地址；无鉴权与并发控制，不建议直接暴露公网（要给局域网访问请启用 Basic Auth 形态与演示模式）。
 
 ## License
 
