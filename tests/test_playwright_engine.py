@@ -103,7 +103,7 @@ def test_unavailable_goes_to_notes_not_warnings():
     svc._cleaner = RuleCleaner(AppConfig())
 
     result = PipelineResult(query="q", intent=ParsedIntent(raw_query="q"))
-    assert svc._safe_fetch(_site("playwright"), ParsedIntent(raw_query="q"), result) == []
+    assert svc._safe_fetch(_site("playwright"), ParsedIntent(raw_query="q"), result) == ([], False)
     assert result.warnings == []
     assert len(result.notes) == 1 and "浏览器组件" in result.notes[0]
 

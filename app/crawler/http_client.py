@@ -20,11 +20,17 @@ import httpx
 from bs4 import BeautifulSoup
 
 from app.config import AppConfig, SiteConfig
-from app.crawler.base import LoginRequiredError
+from app.crawler.base import CrawlError, LoginRequiredError
 from app.crawler.extract import extract_main_text
 from app.models import ParsedIntent, RawNotice
 
 _PLACEHOLDER_RE = re.compile(r"\{(\w+)(?:\.(compact))?\}")
+
+
+def _first_line(exc: Exception) -> str:
+    """httpx 的异常常带多行详情，warnings 里只留第一行。"""
+    lines = str(exc).strip().splitlines()
+    return (lines[0] if lines else type(exc).__name__)[:200]
 
 
 class HttpCrawlerClient:
@@ -49,9 +55,13 @@ class HttpCrawlerClient:
                 try:
                     resp = client.get(url)
                     resp.raise_for_status()
-                except httpx.HTTPError:
-                    # 单页失败不该让整轮任务挂掉
-                    break
+                except httpx.HTTPStatusError as exc:
+                    # 不能 break 了事：静默返回空列表会让「站点 403」在用户眼里变成「本轮 0 条新增」
+                    raise CrawlError(
+                        f"站点[{site.name}]返回 HTTP {exc.response.status_code}（第 {page} 页）", partial=notices
+                    ) from exc
+                except httpx.HTTPError as exc:
+                    raise CrawlError(f"站点[{site.name}]请求失败（第 {page} 页）：{_first_line(exc)}", partial=notices) from exc
 
                 # 中文站点编码常见 gb2312，httpx 有时猜错
                 resp.encoding = resp.encoding or "utf-8"

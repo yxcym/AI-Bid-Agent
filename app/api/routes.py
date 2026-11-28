@@ -65,6 +65,9 @@ def health(request: Request) -> dict:
         "fingerprints": ctx.dedup.count(),
         "scheduled_jobs": len(ctx.scheduler.list_jobs()),
         "output_dir": str(cfg.output_path()),
+        # 指纹库所在目录：本机若同时跑着容器(:80)与本地/exe(:8000)，两套各有一份指纹库，
+        # 这个字段用来一眼确认当前看的是哪一套（两边定时任务都开着时会各跑各的）
+        "data_dir": str(cfg.db_path().parent),
         "push": ctx.pusher.status(),
         "push_webhook": ctx.webhook.status(),
         "browsers": _browser_status(),

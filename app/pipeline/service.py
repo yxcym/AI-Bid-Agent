@@ -12,10 +12,10 @@ from typing import Any
 
 from app.common.errors import BizException
 from app.config import BASE_DIR, AppConfig, SiteConfig
-from app.crawler.base import CrawlerClient, LoginRequiredError, PlaywrightUnavailableError
+from app.crawler.base import CrawlerClient, CrawlError, LoginRequiredError, PlaywrightUnavailableError
 from app.docx_gen.generator import WordDocGenerator
 from app.intent.base import IntentParser
-from app.models import Notice, PipelineResult, ParsedIntent
+from app.models import Notice, ParsedIntent, PipelineResult, RawNotice
 from app.pipeline.cleaner import RuleCleaner
 from app.pipeline.dedup import SqliteFingerprintStore
 from app.schedule.scheduler import TaskScheduler
@@ -72,8 +72,11 @@ class PipelineService:
         sites = self._pick_sites(intent)
 
         all_notices: list[Notice] = []
+        failed_sites: list[str] = []  # 没抓到的站点：决定「0 新增」这句话该怎么说
         for site in sites:
-            raw_list = self._safe_fetch(site, intent, result)
+            raw_list, failed = self._safe_fetch(site, intent, result)
+            if failed:
+                failed_sites.append(site.name)
             result.fetched += len(raw_list)
             for raw in raw_list:
                 notice = self._cleaner.clean(raw)
@@ -84,12 +87,10 @@ class PipelineService:
         # ---- 去重：新指纹入库，旧指纹计为重复 ----
         fresh: list[Notice] = []
         for notice in all_notices:
-            if self._dedup.is_new(notice.fingerprint):
-                notice.is_new = True
+            # 判新与入库是同一条 INSERT OR IGNORE：并发 run 不会同时判新而重复出文档、重复推送
+            notice.is_new = self._dedup.add(notice.fingerprint, notice.title, notice.url, notice.source_name)
+            if notice.is_new:
                 fresh.append(notice)
-                self._dedup.save(notice.fingerprint, notice.title, notice.url, notice.source_name)
-            else:
-                notice.is_new = False
 
         result.fresh = len(fresh)
         result.deduplicated = len(all_notices) - len(fresh)
@@ -115,6 +116,12 @@ class PipelineService:
                     except Exception as exc:
                         channel = getattr(pusher, "label", "推送")
                         result.warnings.append(f"{channel}推送失败：{exc}")
+            elif failed_sites:
+                # 有站点没抓到时，「0 新增」不等于「今天没有新公告」，必须把话说全
+                result.warnings.append(
+                    f"本轮 0 新增，但 {len(failed_sites)} 个站点没抓到（{'、'.join(failed_sites)}），"
+                    "结果不完整，不能据此判断今天没有新公告"
+                )
             else:
                 result.warnings.append("本轮无新增条目，未生成文档（增量推送语义）")
 
@@ -216,18 +223,28 @@ class PipelineService:
         if attempted and missed:
             result.warnings.append(f"详情页正文补全 {done}/{attempted} 条，其余沿用列表页摘要")
 
-    def _safe_fetch(self, site: SiteConfig, intent: ParsedIntent, result: PipelineResult):
+    def _safe_fetch(
+        self, site: SiteConfig, intent: ParsedIntent, result: PipelineResult
+    ) -> tuple[list[RawNotice], bool]:
+        """抓单站，返回 (条目, 是否失败)。失败不拖垮整轮，但调用方必须知道这一站没抓到。"""
         try:
-            return self._crawler.fetch(site, intent)
+            return self._crawler.fetch(site, intent), False
         except LoginRequiredError as exc:
             result.warnings.append(str(exc))
-            return []
-        except PlaywrightUnavailableError as exc:  # 形态差异不等于故障
+            return [], True
+        except PlaywrightUnavailableError as exc:  # 形态差异不等于故障，不计入失败站点
             result.notes.append(exc.short)
-            return []
+            return [], False
+        except CrawlError as exc:  # 消息本身已是面向用户的完整句子（含站点名与原因）
+            partial = list(exc.partial)
+            if partial:
+                result.warnings.append(f"{exc}——已抓到的 {len(partial)} 条仍计入本轮，其余缺失")
+            else:
+                result.warnings.append(f"{exc}——该站本轮没有抓到任何条目")
+            return partial, True
         except Exception as exc:  # 单站失败不拖垮整轮
             result.warnings.append(f"站点[{site.name}]抓取失败：{type(exc).__name__}: {exc}")
-            return []
+            return [], True
 
 
 def _display_path(path: Path) -> str:

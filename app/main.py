@@ -10,7 +10,6 @@ import logging
 from contextlib import asynccontextmanager
 
 from fastapi import FastAPI, Request
-from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 from fastapi.staticfiles import StaticFiles
 
@@ -132,12 +131,10 @@ app = FastAPI(
     version=__version__,
     lifespan=lifespan,
 )
-app.add_middleware(
-    CORSMiddleware,
-    allow_origins=["*"],
-    allow_methods=["*"],
-    allow_headers=["*"],
-)
+# 这里故意不挂 CORS：三种跑法全部同源——exe 由本进程直接托管 frontend/dist，
+# 容器由 nginx 把 /api 反代到本进程，npm run dev 走 vite 的 server.proxy。
+# 之前 allow_origins=["*"] 等于允许浏览器里打开的任意网页跨域调用本机接口
+# （清指纹、删定时任务、触发全链路），而本服务没有鉴权。
 app.include_router(router)
 
 

@@ -82,7 +82,10 @@ function renderCharts() {
   const fresh = r.items.filter((n) => n.is_new).length
   const dup = r.items.length - fresh
   if (donutEl.value) {
-    donutIns = donutIns || echarts.init(donutEl.value)
+    // 图表容器在 v-if="result" 里：每次执行会先把 result 置空，容器随之卸载再重建。
+    // 旧实例仍绑在已卸载的节点上，直接复用会把图画到看不见的地方（第二次执行起图表空白）。
+    donutIns?.dispose()
+    donutIns = echarts.init(donutEl.value)
     donutIns.setOption({
       tooltip: { trigger: 'item' },
       legend: { bottom: 0, icon: 'circle', itemWidth: 8, itemHeight: 8, textStyle: { color: '#64748b', fontSize: 11 } },
@@ -103,7 +106,8 @@ function renderCharts() {
   for (const n of r.items) bySource.set(n.source_name, (bySource.get(n.source_name) || 0) + 1)
   const rows = [...bySource.entries()].sort((a, b) => b[1] - a[1])
   if (barEl.value) {
-    barIns = barIns || echarts.init(barEl.value)
+    barIns?.dispose()
+    barIns = echarts.init(barEl.value)
     barIns.setOption({
       tooltip: { trigger: 'axis', axisPointer: { type: 'shadow' } },
       grid: { left: 8, right: 24, top: 10, bottom: 0, containLabel: true },

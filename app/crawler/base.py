@@ -35,7 +35,15 @@ class PlaywrightUnavailableError(Exception):
 
 
 class CrawlError(Exception):
-    """playwright 抓取失败（导航被拒、超时、渲染异常），消息原样进 warnings。"""
+    """单站抓取失败（HTTP 非 2xx、超时、连接被拒、导航失败、渲染异常），消息面向用户，原样进 warnings。
+
+    partial：失败之前已经抓到的条目。首页就失败时为空；翻到后面才失败时带着前面的结果，
+    上游记一条告警后仍把这批并入本轮——「这一站没抓全」要看得见，到手的条目也不丢。
+    """
+
+    def __init__(self, msg: str, partial: list[RawNotice] | None = None) -> None:
+        super().__init__(msg)
+        self.partial: list[RawNotice] = list(partial or [])
 
 
 class CrawlerClient(Protocol):
