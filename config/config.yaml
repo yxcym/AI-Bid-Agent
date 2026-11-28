@@ -10,6 +10,8 @@ app:
   output_dir: output
   # 指纹去重用的 SQLite
   db_path: data/bidagent.db
+  # 演示模式：界面与抓取照常，但推送自测/清指纹/删任务/定时注册全部禁用（评委点不坏）
+  demo_mode: false
 
 crawler:
   # true = 用内置样例数据跑通全链路（不联网，第一版默认）
@@ -58,28 +60,34 @@ crawler:
     # ============ 暂不可用，待后续阶段 ============
     # 中国政府采购网：WAF 对非浏览器客户端连首页都 403（2026-11-27 实测），
     # 属强反爬，等 Playwright 侧车落地后再启用
+    # 中国政府采购网：HTTP 直连被 WAF 拦（403，2026-11-27 实测）；
+    # 换 playwright 引擎（无头 Chromium）后 2026-11-28 实测通过，抓到 20 条真实公告
     - code: ccgp
       name: 中国政府采购网
       base_url: https://www.ccgp.gov.cn
       list_url: "https://search.ccgp.gov.cn/bxsearch?searchtype=1&page_index={page}&bidSort=0&pinMu=0&bidType=0&kw={keyword}"
       needs_login: false
+      engine: playwright
       item_selector: "ul.vT-srch-result-list-bid > li"
       title_selector: "a"
       link_selector: "a"
       date_selector: "span"
-      enabled: false
+      enabled: true
 
-    # 全国公共资源交易平台：deal 子域名已停止解析（2026-11-27 实测 DNS 失败），
-    # 现门户 www.ggzy.gov.cn 为 JS 渲染，同属 Playwright 待办
+    # 全国公共资源交易平台：deal 子域名已停止解析（2026-11-27/28 两次实测 DNS 失败）。
+    # 新门户列表页 https://www.ggzy.gov.cn/deal/dealList.html 可用 playwright 渲染出条目，
+    # 但 keyword 参数被忽略（2026-11-28 实测两种传参都返回无过滤的最新列表），
+    # 关键词搜索不可用，暂保持停用；站内搜索接口摸清后再启用
     - code: ggzy
       name: 全国公共资源交易平台
-      base_url: http://deal.ggzy.gov.cn
-      list_url: "http://deal.ggzy.gov.cn/ds/deal/dealList.jsp?keyword={keyword}&page={page}"
+      base_url: https://www.ggzy.gov.cn
+      list_url: "https://www.ggzy.gov.cn/deal/dealList.html?HEADER_DEAL_TYPE=02"
       needs_login: false
-      item_selector: ".deal-list li"
+      engine: playwright
+      item_selector: ".E016-list li"
       title_selector: "a"
       link_selector: "a"
-      date_selector: ".date"
+      date_selector: ""
       enabled: false
 
     # 登录态站点：赛题要求至少 1 个。
@@ -157,3 +165,5 @@ summary:
   api_key: ""
   base_url: ""
   model: ""
+
+

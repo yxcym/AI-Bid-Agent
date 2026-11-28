@@ -773,6 +773,10 @@ code {
   border: 1px solid #cfe1ef;
 }
 
+.chart-trend {
+  height: 260px;
+}
+
 /* ---------------- 空态 ---------------- */
 
 .empty {

@@ -2,7 +2,7 @@
 // 避免 import 'echarts' 全量打包。缺注册的图表在运行时以 console error 报错而非抛异常，
 // 因此注册清单与使用处必须同步维护。
 import * as echarts from 'echarts/core'
-import { BarChart, PieChart } from 'echarts/charts'
+import { BarChart, LineChart, PieChart } from 'echarts/charts'
 import {
   LegendComponent,
   TooltipComponent,
@@ -13,6 +13,7 @@ import { CanvasRenderer } from 'echarts/renderers'
 
 echarts.use([
   BarChart,
+  LineChart,
   PieChart,
   LegendComponent,
   TooltipComponent,

@@ -84,6 +84,7 @@ export interface WebhookStatus {
 export interface Health {
   status: string
   mock: boolean
+  demo_mode: boolean
   parser: string
   sites: SiteInfo[]
   fingerprints: number
@@ -104,4 +105,14 @@ export interface FileItem {
   size: number
   modified: number
   url: string
+}
+
+/** 按日聚合的运行统计（缺数日期由后端补零） */
+export interface HistoryDaily {
+  date: string
+  runs: number
+  fetched: number
+  fresh: number
+  deduplicated: number
+  docs: number
 }

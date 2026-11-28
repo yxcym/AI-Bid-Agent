@@ -11,6 +11,14 @@ WORKDIR /srv/bidagent
 # 先装依赖再拷代码，利用层缓存：代码改动不触发重装
 COPY requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
+# playwright 引擎的浏览器（ccgp 等反爬站点用）。
+# 坑位一：1.65 的驱动 node 启动就要 libatomic.so.1，而 --with-deps 是先跑驱动再装依赖，
+#         所以 libatomic1 必须提前手动装；
+# 坑位二：1.49 旧版的 --with-deps 依赖清单引用了 Debian 已改名的字体包（ttf-unifont），故锁 1.65.2；
+# 坑位三：官方 CDN（azureedge）境内构建时常 TLS 断连，切 npmmirror 二进制镜像
+ENV PLAYWRIGHT_DOWNLOAD_HOST=https://cdn.npmmirror.com/binaries/playwright
+RUN apt-get update && apt-get install -y --no-install-recommends libatomic1 && rm -rf /var/lib/apt/lists/*
+RUN python -m playwright install --with-deps chromium
 
 COPY app ./app
 COPY config ./config

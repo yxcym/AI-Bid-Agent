@@ -16,6 +16,22 @@ class LoginRequiredError(Exception):
         self.site = site
 
 
+class PlaywrightUnavailableError(Exception):
+    """配置了 playwright 引擎但运行环境没装浏览器依赖。
+
+    exe 形态不带 Chromium，容器/开发环境装了才生效；上游把它记进 warnings，不拖垮其它站点。
+    """
+
+    def __init__(self, site: SiteConfig, reason: str = "") -> None:
+        tip = "pip install playwright && python -m playwright install chromium"
+        super().__init__(f"站点[{site.name}]需要 playwright 引擎但环境不可用：{reason or tip}")
+        self.site = site
+
+
+class CrawlError(Exception):
+    """playwright 抓取失败（导航被拒、超时、渲染异常），消息原样进 warnings。"""
+
+
 class CrawlerClient(Protocol):
     def fetch(self, site: SiteConfig, intent: ParsedIntent) -> list[RawNotice]:
         ...

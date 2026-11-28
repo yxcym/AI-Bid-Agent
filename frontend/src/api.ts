@@ -47,4 +47,6 @@ export const api = {
   clearFingerprints: () => post<{ removed: number }>('/api/fingerprints/clear', {}),
 
   testPush: () => post<PushTestResult>('/api/push/test', {}),
+
+  historyDaily: () => request<HistoryDaily[]>('/api/history/daily?days=14'),
 }

@@ -29,6 +29,12 @@ def _ctx(request: Request):
     return request.app.state.ctx
 
 
+def _forbid_demo(request: Request, action: str) -> None:
+    """演示模式守卫：看得见数据，点不出副作用。"""
+    if _ctx(request).config.app.demo_mode:
+        raise BizException(f"演示模式已开启，「{action}」已禁用（config.yaml 的 app.demo_mode）", status_code=403)
+
+
 # ---------------------------------------------------------------- 基础
 
 @router.get("/health")
@@ -38,6 +44,7 @@ def health(request: Request) -> dict:
     data = {
         "status": "ok",
         "mock": cfg.crawler.mock,
+        "demo_mode": cfg.app.demo_mode,
         "parser": ctx.parser.name,
         "sites": [
             {"code": s.code, "name": s.name, "enabled": s.enabled, "needs_login": s.needs_login}
@@ -49,6 +56,7 @@ def health(request: Request) -> dict:
         "push": ctx.pusher.status(),
         "push_webhook": ctx.webhook.status(),
         "summary": {"enabled": ctx.summarizer.enabled(), "model": ctx.summarizer.model if ctx.summarizer.enabled() else None},
+        "run_history": ctx.history.count(),
     }
     # 统一信封：前端解包逻辑要求 {success, data}，裸dict会被前端判为失败
     return {"success": True, "data": data}
@@ -68,16 +76,37 @@ def parse_intent(req: IntentRequest, request: Request) -> dict:
 def run_pipeline(req: RunRequest, request: Request) -> dict:
     """一句话跑完整条链路：解析 -> 抓取 -> 清洗 -> 去重 -> 出 Word -> 挂定时。"""
     ctx = _ctx(request)
-    result = ctx.pipeline.run(req.query, write_doc=req.write_doc, allow_schedule=req.schedule)
+    demo = ctx.config.app.demo_mode
+    allow_schedule = req.schedule and not demo
+    result = ctx.pipeline.run(req.query, write_doc=req.write_doc, allow_schedule=allow_schedule)
+    if demo and req.schedule and not result.scheduled_job:
+        result.warnings.append("演示模式：定时注册已跳过（写操作禁用）")
     return {"success": True, "data": result.to_dict()}
 
 
 @router.post("/fingerprints/clear")
 def clear_fingerprints(request: Request) -> dict:
     """清空去重库。演示“首次全量 / 二次增量”时用。"""
+    _forbid_demo(request, "清空指纹库")
     ctx = _ctx(request)
     removed = ctx.dedup.clear()
     return {"success": True, "message": f"已清空 {removed} 条指纹", "data": {"removed": removed}}
+
+
+# ---------------------------------------------------------------- 历史趋势
+
+@router.get("/history/daily")
+def history_daily(request: Request, days: int = 14) -> dict:
+    """按日聚合的运行/新增统计（缺数日期补零），前端画趋势图。"""
+    ctx = _ctx(request)
+    return {"success": True, "data": ctx.history.daily(days=days)}
+
+
+@router.get("/history/recent")
+def history_recent(request: Request, limit: int = 20) -> dict:
+    """最近几轮流水线的原始记录。"""
+    ctx = _ctx(request)
+    return {"success": True, "data": ctx.history.recent(limit=limit)}
 
 
 # ---------------------------------------------------------------- 推送
@@ -85,6 +114,7 @@ def clear_fingerprints(request: Request) -> dict:
 @router.post("/push/test")
 def test_push(request: Request) -> dict:
     """给所有已启用渠道各发一条连通性测试（邮件 + 飞书/钉钉群），不用等真实抓取。"""
+    _forbid_demo(request, "推送自测")
     ctx = _ctx(request)
     sent: list[str] = []
     errors: list[str] = []
@@ -119,6 +149,7 @@ def list_tasks(request: Request) -> dict:
 
 @router.delete("/tasks/{job_id}")
 def delete_task(job_id: str, request: Request) -> dict:
+    _forbid_demo(request, "删除定时任务")
     ctx = _ctx(request)
     if not ctx.scheduler.remove(job_id):
         raise BizException(f"任务不存在：{job_id}", status_code=404)

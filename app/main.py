@@ -31,6 +31,7 @@ from app.intent.llm_parser import LlmIntentParser
 from app.intent.rule_parser import RuleIntentParser
 from app.pipeline.cleaner import RuleCleaner
 from app.pipeline.dedup import SqliteFingerprintStore
+from app.pipeline.history import SqliteRunHistory
 from app.pipeline.service import PipelineService
 from app.push.emailer import EmailPusher
 from app.push.webhook import WebhookPusher
@@ -61,6 +62,7 @@ class AppContext:
         self.pusher = EmailPusher(config)
         self.webhook = WebhookPusher(config)
         self.summarizer = NoticeSummarizer(config)
+        self.history = SqliteRunHistory(config.db_path())
         self.pipeline = PipelineService(
             config=config,
             parser=self.parser,
@@ -72,6 +74,7 @@ class AppContext:
             pusher=self.pusher,
             pushers=[self.webhook],
             summarizer=self.summarizer,
+            history=self.history,
         )
         self.scheduler.bind(self._run_scheduled)
 

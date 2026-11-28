@@ -9,7 +9,10 @@ APScheduler==3.11.0
 pydantic==2.10.4
 pydantic-settings==2.7.0
 PyYAML==6.0.2
+# playwright 引擎（engine: playwright 的站点用，如 ccgp 过 WAF）：
+# 还需额外执行 python -m playwright install --with-deps chromium 下载浏览器与系统依赖；
+# 1.49.1 的 --with-deps 在新版 Debian 里因 ttf-unifont 改名而装不上，锁 1.65.2（venv 同版实测）；
+# exe 形态不带此依赖，缺包时站点自动降级为 warning 不影响其它站点
+playwright==1.65.2
 
 # 开发依赖（本地跑测试用，不进镜像）：.venv 里 pip install pytest==8.3.4
-# 登录态站点抓取（第二阶段启用，需额外执行 playwright install chromium）
-# playwright==1.49.1

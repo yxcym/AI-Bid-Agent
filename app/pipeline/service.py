@@ -36,6 +36,7 @@ class PipelineService:
         pusher: Any | None = None,
         pushers: list[Any] | None = None,
         summarizer: Any | None = None,
+        history: Any | None = None,
     ) -> None:
         self._config = config
         self._parser = parser
@@ -49,6 +50,8 @@ class PipelineService:
         self._pushers: list[Any] = [p for p in (pusher, *(pushers or [])) if p is not None]
         # 摘要器同样鸭子类型（.enabled / .summarize），失败进 warnings 不阻断
         self._summarizer = summarizer
+        # 运行历史（.record），失败只记日志不阻断主链路
+        self._history = history
 
     def parse_only(self, query: str) -> ParsedIntent:
         return self._parser.parse(query, self._config.enabled_sites())
@@ -119,7 +122,26 @@ class PipelineService:
             "pipeline done query=%s fetched=%d fresh=%d dup=%d doc=%s",
             result.query, result.fetched, result.fresh, result.deduplicated, result.doc_path,
         )
+        self._record_history(result)
         return result
+
+    def _record_history(self, result: PipelineResult) -> None:
+        if self._history is None:
+            return
+        try:
+            self._history.record(
+                query=result.query,
+                keyword=result.intent.keyword,
+                region=result.intent.region,
+                fetched=result.fetched,
+                fresh=result.fresh,
+                deduplicated=result.deduplicated,
+                has_doc=result.doc_path is not None,
+                parser=result.intent.parser,
+                warnings=len(result.warnings),
+            )
+        except Exception:
+            log.exception("运行历史记录失败（不影响主链路）")
 
     # ------------------------------------------------------ 内部
 

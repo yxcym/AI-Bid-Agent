@@ -3,7 +3,7 @@ import { computed, nextTick, onBeforeUnmount, onMounted, reactive, ref, watch } 
 import echarts from './echarts'
 import type { EChartsType } from 'echarts/core'
 import { api } from './api'
-import type { FileItem, Health, Job, ParsedIntent, PipelineResult } from './types'
+import type { FileItem, Health, HistoryDaily, Job, ParsedIntent, PipelineResult } from './types'
 
 const EXAMPLES = [
   '最近3个月的上海充电桩招标信息都有哪些，请汇总后每天9:00发送给我',
@@ -33,8 +33,48 @@ const enabledSites = computed(() => health.value?.sites.filter((s) => s.enabled)
 
 const donutEl = ref<HTMLElement | null>(null)
 const barEl = ref<HTMLElement | null>(null)
+const trendEl = ref<HTMLElement | null>(null)
 let donutIns: EChartsType | null = null
 let barIns: EChartsType | null = null
+let trendIns: EChartsType | null = null
+const trendData = ref<HistoryDaily[]>([])
+
+function renderTrend() {
+  if (!trendEl.value || !trendData.value.length) return
+  trendIns = trendIns || echarts.init(trendEl.value)
+  trendIns.setOption({
+    tooltip: { trigger: 'axis' },
+    legend: { bottom: 0, icon: 'circle', itemWidth: 8, itemHeight: 8, textStyle: { color: '#64748b', fontSize: 11 } },
+    grid: { left: 8, right: 16, top: 16, bottom: 4, containLabel: true },
+    xAxis: {
+      type: 'category',
+      data: trendData.value.map((d) => d.date.slice(5)),
+      axisLine: { lineStyle: { color: '#dbe3ec' } },
+      axisTick: { show: false },
+      axisLabel: { color: '#47586b', fontSize: 11 },
+    },
+    yAxis: { type: 'value', minInterval: 1, splitLine: { lineStyle: { color: '#eef2f7' } } },
+    series: [
+      {
+        name: '新增',
+        type: 'line',
+        smooth: true,
+        symbolSize: 6,
+        data: trendData.value.map((d) => d.fresh),
+        lineStyle: { width: 2.5, color: '#22a35c' },
+        itemStyle: { color: '#22a35c' },
+        areaStyle: { color: 'rgba(34,163,92,0.12)' },
+      },
+      {
+        name: '运行轮次',
+        type: 'bar',
+        barWidth: 10,
+        itemStyle: { borderRadius: [4, 4, 0, 0], color: '#9db9d4' },
+        data: trendData.value.map((d) => d.runs),
+      },
+    ],
+  })
+}
 
 function renderCharts() {
   const r = result.value
@@ -89,6 +129,7 @@ function renderCharts() {
 function onResize() {
   donutIns?.resize()
   barIns?.resize()
+  trendIns?.resize()
 }
 
 watch(result, () => nextTick(renderCharts))
@@ -102,6 +143,7 @@ onBeforeUnmount(() => {
   window.removeEventListener('resize', onResize)
   donutIns?.dispose()
   barIns?.dispose()
+  trendIns?.dispose()
 })
 
 async function refreshMeta() {
@@ -111,6 +153,8 @@ async function refreshMeta() {
     backendDown.value = false
     tasks.value = await api.tasks()
     files.value = await api.files()
+    trendData.value = await api.historyDaily()
+    nextTick(renderTrend)
   } catch (e) {
     backendDown.value = true
   } finally {
@@ -228,6 +272,7 @@ function docUrl(path: string | null): string {
           <span class="pill" :class="health.mock ? 'pill-warn' : 'pill-ok'">
             <i class="dot"></i>{{ health.mock ? 'MOCK 演示数据' : '真实抓取' }}
           </span>
+          <span v-if="health.demo_mode" class="pill pill-warn" title="写操作已禁用：推送自测/清指纹/删任务/定时注册"><i class="dot"></i>演示模式·只读</span>
           <span class="pill">解析器 {{ health.parser }}</span>
           <span class="pill">站点 {{ enabledSites }}/{{ health.sites.length }}</span>
           <span class="pill">指纹 {{ health.fingerprints }}</span>
@@ -289,6 +334,12 @@ function docUrl(path: string | null): string {
         </button>
       </div>
       <p v-if="error" class="error">{{ error }}</p>
+    </section>
+
+    <section class="card">
+      <h2>运行趋势</h2>
+      <p class="muted-xs" style="margin: 2px 0 8px">近 14 天每轮流水线的运行次数与新增条目（按天聚合，缺数日期补零）</p>
+      <div ref="trendEl" class="chart chart-trend"></div>
     </section>
 
     <div class="duo" :class="{ 'duo-both': intent && result }">

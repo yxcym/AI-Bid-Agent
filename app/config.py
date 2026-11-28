@@ -63,6 +63,9 @@ class SiteConfig(BaseModel):
     # 列表页模板，支持 {keyword} {page} {start_date} {end_date} 占位
     list_url: str
     needs_login: bool = False
+    # 渲染引擎：http = httpx 直连（快）；playwright = 无头 Chromium（过 WAF / JS 渲染站点）
+    # playwright 仅支持 html 形态；exe 体积里不带浏览器，缺包时自动降级为 warning
+    engine: str = "http"
     # 响应形态：html = 服务端直出网页（bs4 选择器）；json = AJAX 接口（字段映射）
     data_format: str = "html"
     # ---- html 模式 ----
@@ -102,6 +105,9 @@ class AppSection(BaseModel):
     port: int = 8000
     output_dir: str = "output"
     db_path: str = "data/bidagent.db"
+    # 演示模式：评委看得见完整界面与数据，但点不出副作用——
+    # 禁掉 /push/test、/fingerprints/clear、任务删除与定时注册（抓取与出文档保留，那是核心演示）
+    demo_mode: bool = False
 
 
 class DocSection(BaseModel):
