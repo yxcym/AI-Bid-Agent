@@ -22,6 +22,13 @@ crawler:
   max_items_per_site: 20
   user_agent: "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0 Safari/537.36"
 
+  # ---- 详情页正文抽取：列表页只有标题+几行摘要，正文靠这一层补 ---- 
+  # 只对「本轮新增、且本轮要出文档」的条目补抓，增量语义天然控量。
+  detail_enabled: true
+  detail_max_per_site: 12     # 每站每轮最多补几条（控时间，也控对目标站的请求量）
+  detail_max_chars: 1200      # 抽取阶段上限，之后按 doc.max_chars_per_item 统一截断
+  detail_delay_seconds: 0.25  # 抓详情页的间隔，比列表页保守
+
   sites:
     # ============ 已校准可用（2026-11-27 实测） ============
     # 合肥公共资源交易中心：前端 AJAX 接口（EpointWebBuilder），
@@ -38,6 +45,8 @@ crawler:
       json_date_field: infodate
       json_url_template: "/jyxx/002001/{categorynum}/{infodate2.compact}/{infoid}.html"
       json_content_fields: [zhaobiaofangshi, infod, infoa, infob, budgetamount, projectno]
+      # 详情页正文容器（探针实测：273 字纯正文；外层 div.container 是 353 字且带"打印/首页>交易信息"导航）
+      detail_selector: "div.ewb-info-main"
       request_headers:
         Referer: "https://ggzy.hefei.gov.cn/jyxx/002001/engineer2.html"
       enabled: true
@@ -53,6 +62,7 @@ crawler:
       json_date_field: infodate
       json_url_template: "/jyxx/002002/{categorynum}/{infodate2.compact}/{infoid}.html"
       json_content_fields: [zhaobiaofangshi, infod, infoa, infob, budgetamount, projectno]
+      detail_selector: "div.ewb-info-main"
       request_headers:
         Referer: "https://ggzy.hefei.gov.cn/jyxx/002002/engineer2.html"
       enabled: true
@@ -72,6 +82,8 @@ crawler:
       title_selector: "a"
       link_selector: "a"
       date_selector: "span"
+      # 详情页正文容器（探针实测：673 字、16 个 <p>；body 全文本 977 字含导航噪音）
+      detail_selector: "div.vF_detail_main"
       enabled: true
 
     # 全国公共资源交易平台：deal 子域名已停止解析（2026-11-27/28 两次实测 DNS 失败）。

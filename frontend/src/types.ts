@@ -50,6 +50,7 @@ export interface PipelineResult {
   fetched: number
   fresh: number
   deduplicated: number
+  detail_fetched: number
   doc_path: string | null
   scheduled_job: string | null
   items: Notice[]

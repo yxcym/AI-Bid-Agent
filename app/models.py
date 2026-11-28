@@ -79,6 +79,8 @@ class PipelineResult:
     fetched: int = 0
     fresh: int = 0
     deduplicated: int = 0
+    # 成功补抓到详情页正文的条数（0 表示全部沿用列表页摘要）
+    detail_fetched: int = 0
     doc_path: str | None = None
     scheduled_job: str | None = None
     items: list[Notice] = field(default_factory=list)
@@ -96,6 +98,7 @@ class PipelineResult:
             "fetched": self.fetched,
             "fresh": self.fresh,
             "deduplicated": self.deduplicated,
+            "detail_fetched": self.detail_fetched,
             "doc_path": self.doc_path,
             "scheduled_job": self.scheduled_job,
             "warnings": self.warnings,

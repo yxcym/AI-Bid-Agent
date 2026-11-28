@@ -375,6 +375,7 @@ function docUrl(path: string | null): string {
           <div class="kpi"><b>{{ result.fetched }}</b><span>抓取</span></div>
           <div class="kpi kpi-good"><b>{{ result.fresh }}</b><span>新增</span></div>
           <div class="kpi kpi-muted"><b>{{ result.deduplicated }}</b><span>去重</span></div>
+          <div class="kpi kpi-good"><b>{{ result.detail_fetched ?? 0 }}</b><span>正文已补</span></div>
           <div class="kpi kpi-accent"><b>{{ result.items.length }}</b><span>本轮条目</span></div>
         </div>
 

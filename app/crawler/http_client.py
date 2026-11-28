@@ -21,6 +21,7 @@ from bs4 import BeautifulSoup
 
 from app.config import AppConfig, SiteConfig
 from app.crawler.base import LoginRequiredError
+from app.crawler.extract import extract_main_text
 from app.models import ParsedIntent, RawNotice
 
 _PLACEHOLDER_RE = re.compile(r"\{(\w+)(?:\.(compact))?\}")
@@ -65,6 +66,43 @@ class HttpCrawlerClient:
                 time.sleep(0.3)  # 轻限流，别把人家站点打疼
 
         return notices[: cfg.max_items_per_site]
+
+    # ------------------------------------------------------ 详情页正文
+
+    def fetch_details(
+        self, site: SiteConfig, notices: list[RawNotice], limit: int | None = None
+    ) -> list[str]:
+        """给列表页条目补抓详情页正文，返回成功补到正文的 URL 列表。
+
+        只换 content（且新正文要比原来长才换），失败静默跳过——调用方按
+        "尝试/成功"差额记一条汇总 warning，不逐条刷屏。
+        """
+        cfg = self._config.crawler
+        if not cfg.detail_enabled or not notices:
+            return []
+        cap = cfg.detail_max_per_site if limit is None else max(0, limit)
+        headers = {"User-Agent": cfg.user_agent, **site.request_headers}
+        done: list[str] = []
+
+        with httpx.Client(
+            timeout=cfg.timeout_seconds,
+            headers=headers,
+            follow_redirects=True,
+        ) as client:
+            for idx, notice in enumerate(notices[:cap]):
+                if idx:  # 间隔放开头：上一条失败也要慢下来，别连发
+                    time.sleep(cfg.detail_delay_seconds)
+                try:
+                    resp = client.get(notice.url)
+                    resp.raise_for_status()
+                    text = extract_main_text(resp.text, site.detail_selector, cfg.detail_max_chars)
+                except httpx.HTTPError:
+                    continue
+                if text and len(text) > len(notice.content):
+                    notice.content = text
+                    done.append(notice.url)
+
+        return done
 
     # ------------------------------------------------------ 内部
 

@@ -29,3 +29,12 @@ class HybridCrawlerClient(CrawlerClient):
         if engine == "playwright":
             return self._playwright.fetch(site, intent)
         return self._http.fetch(site, intent)
+
+    def fetch_details(
+        self, site: SiteConfig, notices: list[RawNotice], limit: int | None = None
+    ) -> list[str]:
+        """详情页正文补抓：同样按 engine 分流（playwright 站先试 http，失败再开浏览器）。"""
+        engine = (site.engine or "http").lower()
+        if engine == "playwright":
+            return self._playwright.fetch_details(site, notices, limit)
+        return self._http.fetch_details(site, notices, limit)

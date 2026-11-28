@@ -63,6 +63,7 @@ Docker Desktop 已设为登录自启，容器策略`restart: unless-stopped`—�
 - [x] 演示模式（`app.demo_mode`：禁推送自测/清指纹/删任务/定时注册，前端显示只读药丸）
 - [x] Playwright 渲染引擎（`engine: playwright`，中国政府采购网已启用并实测过 WAF；exe 形态缺包自动降级为 warning）
 - [x] Basic Auth 局域网形态（`docker-compose.auth.yml`＋`nginx-auth.conf`）＋容器镜像离线包（约590MB）
+- [x] 详情页正文抽取（三层降级：站点选择器 → 常见命名 → 文本密度；只对新增且出文档的条目补抓，每站限 12 条，正文按 600 字截断入档）
 - [ ] 登录态站点真接入（`demo_login` 为占位域名；经核查"至少1个登录站点"出自方案稿自设指标，非赛题硬性要求，按可选增强处理，见`docs/进度与选型.md`第六节）
 
 明确边界：默认仅绑 127.0.0.1 回环地址；无鉴权与并发控制，不建议直接暴露公网（要给局域网访问请启用 Basic Auth 形态与演示模式）。

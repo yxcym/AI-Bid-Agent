@@ -66,6 +66,8 @@ class SiteConfig(BaseModel):
     # 渲染引擎：http = httpx 直连（快）；playwright = 无头 Chromium（过 WAF / JS 渲染站点）
     # playwright 仅支持 html 形态；exe 体积里不带浏览器，缺包时自动降级为 warning
     engine: str = "http"
+    # 详情页正文容器的 CSS 选择器；留空则走通用抽取（常见命名 → 文本密度 → body 兜底）
+    detail_selector: str = ""
     # 响应形态：html = 服务端直出网页（bs4 选择器）；json = AJAX 接口（字段映射）
     data_format: str = "html"
     # ---- html 模式 ----
@@ -98,6 +100,14 @@ class CrawlerConfig(BaseModel):
         "(KHTML, like Gecko) Chrome/122.0 Safari/537.36"
     )
     sites: list[SiteConfig] = Field(default_factory=list)
+    # ---- 详情页正文抽取（列表页只给标题摘要，正文靠这一层补）----
+    detail_enabled: bool = True
+    # 每站每轮最多补几条正文：控时间，也控对目标站点的请求量
+    detail_max_per_site: int = 12
+    # 抽取阶段字数上限（之后还会按 doc.max_chars_per_item 统一截断）
+    detail_max_chars: int = 1200
+    # 抓详情页的请求间隔（秒），比列表页更保守
+    detail_delay_seconds: float = 0.25
 
 
 class AppSection(BaseModel):

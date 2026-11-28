@@ -49,6 +49,10 @@ class RuleCleaner:
             fingerprint=fingerprint(raw.title, raw.url),
         )
 
+    def clean_block(self, text: str) -> str:
+        """对一段已脱标签的正文做同样的去广告与截断（详情页正文补抓后走这里）。"""
+        return self._clean_text(text)
+
     def is_relevant(self, notice: Notice, keyword: str) -> bool:
         if not keyword:
             return True
@@ -66,15 +70,19 @@ class RuleCleaner:
         # 逐行剔广告：整行命中任一广告模式就整行丢
         lines = [ln.strip() for ln in re.split(r"[\r\n|]+", text) if ln.strip()]
         lines = [ln for ln in lines if not self._ad_re.search(ln)]
-        # 单行里夹着广告尾巴时，按句切掉那一句
-        kept = []
+        # 单行里夹着广告尾巴时，按句切掉那一句；行与行之间保留换行，
+        # 这样详情页正文在 Word 里是分段落的，而不是挤成一整块 600 字
+        blocks: list[str] = []
         for ln in lines:
+            segs = []
             for seg in re.split(r"。", ln):
                 seg = seg.strip()
                 if not seg or self._ad_re.search(seg):
                     continue
-                kept.append(seg + "。")
-        text = "".join(kept) if kept else " ".join(lines)
+                segs.append(seg + "。")
+            if segs:
+                blocks.append("".join(segs))
+        text = "\n".join(blocks) if blocks else " ".join(lines)
 
         text = _WS_RE.sub(" ", text).strip()
         cap = limit or self._max_chars

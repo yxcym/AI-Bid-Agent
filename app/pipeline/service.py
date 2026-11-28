@@ -95,6 +95,10 @@ class PipelineService:
         result.deduplicated = len(all_notices) - len(fresh)
         result.items = all_notices
 
+        # ---- 正文补抓：只对新增条目、只在本轮真出文档时做（没有落点就不白花时间）----
+        if write_doc and fresh:
+            self._enrich_details(fresh, sites, result)
+
         # ---- 出文档：只写增量，没有增量就不产空文档 ----
         if write_doc:
             if fresh:
@@ -168,6 +172,45 @@ class PipelineService:
         if not picked:
             raise BizException(f"指定的站点不存在或未启用：{intent.sites}")
         return picked
+
+    def _enrich_details(self, fresh: list[Notice], sites: list[SiteConfig], result: PipelineResult) -> None:
+        """对新增条目补抓详情页正文：按站点分组、每站限量、失败只记一条汇总。"""
+        fetch_details = getattr(self._crawler, "fetch_details", None)
+        if fetch_details is None or not self._config.crawler.detail_enabled or not fresh:
+            return
+
+        cfg = self._config.crawler
+        site_map = {s.code: s for s in sites}
+        groups: dict[str, list[Notice]] = {}
+        for notice in fresh:
+            groups.setdefault(notice.source_code, []).append(notice)
+
+        attempted = 0
+        done = 0
+        for code, group in groups.items():
+            site = site_map.get(code)
+            if site is None:
+                continue
+            cap = min(len(group), cfg.detail_max_per_site)
+            attempted += cap
+            try:
+                urls = fetch_details(site, group, cap)
+            except Exception as exc:  # 单站详情失败不影响主链路
+                result.warnings.append(f"站点[{site.name}]详情页抓取失败：{type(exc).__name__}: {exc}")
+                continue
+            if not urls:
+                continue
+            hit = set(urls)
+            for notice in group:
+                if notice.url in hit:
+                    # 正文同样过去广告与统一截断，保证文档与摘要口径一致
+                    notice.content = self._cleaner.clean_block(notice.content)
+            done += len(urls)
+
+        result.detail_fetched = done
+        missed = attempted - done
+        if attempted and missed:
+            result.warnings.append(f"详情页正文补全 {done}/{attempted} 条，其余沿用列表页摘要")
 
     def _safe_fetch(self, site: SiteConfig, intent: ParsedIntent, result: PipelineResult):
         try:

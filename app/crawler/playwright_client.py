@@ -14,6 +14,7 @@ import time
 
 from app.config import AppConfig, SiteConfig
 from app.crawler.base import CrawlError, PlaywrightUnavailableError
+from app.crawler.extract import extract_main_text
 from app.crawler.http_client import HttpCrawlerClient
 from app.models import ParsedIntent, RawNotice
 
@@ -82,6 +83,67 @@ class PlaywrightCrawlerClient(HttpCrawlerClient):
             raise CrawlError(f"站点[{site.name}]playwright 引擎异常：{_short(exc)}") from exc
 
         return notices[: cfg.max_items_per_site]
+
+    # ------------------------------------------------------ 详情页正文
+
+    def fetch_details(
+        self, site: SiteConfig, notices: list[RawNotice], limit: int | None = None
+    ) -> list[str]:
+        """详情页优先走 httpx（实测 ccgp 详情页不被 WAF 拦，比开浏览器快一个量级）。
+
+        万一详情页也被拦（http 全部失败），才退回浏览器批量抓一次——
+        一批只开一次浏览器，绝不逐条启停。
+        """
+        done = super().fetch_details(site, notices, limit)
+        if done or not notices:
+            return done
+        return self._fetch_details_via_browser(site, notices, limit)
+
+    def _fetch_details_via_browser(
+        self, site: SiteConfig, notices: list[RawNotice], limit: int | None
+    ) -> list[str]:
+        cfg = self._config.crawler
+        if not cfg.detail_enabled:
+            return []
+        cap = cfg.detail_max_per_site if limit is None else max(0, limit)
+        done: list[str] = []
+
+        try:
+            from playwright.sync_api import Error as PWError
+            from playwright.sync_api import TimeoutError as PWTimeoutError
+            from playwright.sync_api import sync_playwright
+        except ImportError as exc:
+            raise PlaywrightUnavailableError(site, str(exc)) from exc
+
+        try:
+            with sync_playwright() as p:
+                browser = p.chromium.launch(headless=True, args=["--disable-blink-features=AutomationControlled"])
+                context = browser.new_context(user_agent=cfg.user_agent, locale="zh-CN", viewport={"width": 1440, "height": 900})
+                try:
+                    page = context.new_page()
+                    for idx, notice in enumerate(notices[:cap]):
+                        if idx:
+                            time.sleep(cfg.detail_delay_seconds)
+                        try:
+                            resp = page.goto(notice.url, wait_until="domcontentloaded", timeout=cfg.timeout_seconds * 1000)
+                        except (PWError, PWTimeoutError):
+                            continue
+                        if resp is None or resp.status >= 400:
+                            continue
+                        page.wait_for_timeout(600)
+                        text = extract_main_text(page.content(), site.detail_selector, cfg.detail_max_chars)
+                        if text and len(text) > len(notice.content):
+                            notice.content = text
+                            done.append(notice.url)
+                finally:
+                    context.close()
+                    browser.close()
+        except (PlaywrightUnavailableError, CrawlError):
+            raise
+        except Exception as exc:
+            raise CrawlError(f"站点[{site.name}]详情页 playwright 抓取异常：{_short(exc)}") from exc
+
+        return done
 
 
 def _short(exc: Exception) -> str:
