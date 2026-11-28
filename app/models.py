@@ -85,6 +85,9 @@ class PipelineResult:
     scheduled_job: str | None = None
     items: list[Notice] = field(default_factory=list)
     warnings: list[str] = field(default_factory=list)
+    # 中性提示（不是故障）：如「本版本未内置浏览器，某站点已跳过」。
+    # 与 warnings 分开渲染，避免用户把形态差异读成抓取失败。
+    notes: list[str] = field(default_factory=list)
     # 推送成功的收件方（如 "a@qq.com, b@163.com"）；失败进 warnings
     pushed_to: list[str] = field(default_factory=list)
     # 模型摘要：{overview, picks[{index,title,url,source_name,publish_date,why,risk}], model, ...}
@@ -102,6 +105,7 @@ class PipelineResult:
             "doc_path": self.doc_path,
             "scheduled_job": self.scheduled_job,
             "warnings": self.warnings,
+            "notes": self.notes,
             "pushed_to": self.pushed_to,
             "summary": self.summary,
             "items": [n.to_dict() for n in self.items],

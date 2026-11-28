@@ -55,6 +55,7 @@ export interface PipelineResult {
   scheduled_job: string | null
   items: Notice[]
   warnings: string[]
+  notes: string[]
   pushed_to?: string[]
   summary?: SummaryResult | null
 }

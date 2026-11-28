@@ -17,15 +17,21 @@ class LoginRequiredError(Exception):
 
 
 class PlaywrightUnavailableError(Exception):
-    """配置了 playwright 引擎但运行环境没装浏览器依赖。
+    """配置了 playwright 引擎但运行环境没有可用的浏览器。
 
-    exe 形态不带 Chromium，容器/开发环境装了才生效；上游把它记进 warnings，不拖垮其它站点。
+    exe 形态不内置 Chromium，容器/开发环境装了才生效。
+    这类情况不是「故障」而是「本版本不含」，上游记进 notes（中性提示）而不是 warnings（告警），
+    避免用户把「轻量版没带浏览器」误读成「官网挂了 / 抓取出错」。
     """
 
     def __init__(self, site: SiteConfig, reason: str = "") -> None:
-        tip = "pip install playwright && python -m playwright install chromium"
-        super().__init__(f"站点[{site.name}]需要 playwright 引擎但环境不可用：{reason or tip}")
         self.site = site
+        self.reason = reason
+        super().__init__(self.short)
+
+    @property
+    def short(self) -> str:
+        return f"「{self.site.name}」需要浏览器组件，本版本未内置，已跳过（Docker 版/完整版可用）"
 
 
 class CrawlError(Exception):

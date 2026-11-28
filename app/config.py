@@ -64,7 +64,7 @@ class SiteConfig(BaseModel):
     list_url: str
     needs_login: bool = False
     # 渲染引擎：http = httpx 直连（快）；playwright = 无头 Chromium（过 WAF / JS 渲染站点）
-    # playwright 仅支持 html 形态；exe 体积里不带浏览器，缺包时自动降级为 warning
+    # playwright 仅支持 html 形态；exe 体积里不带浏览器，缺浏览器时降级为 notes（中性提示）
     engine: str = "http"
     # 详情页正文容器的 CSS 选择器；留空则走通用抽取（常见命名 → 文本密度 → body 兜底）
     detail_selector: str = ""

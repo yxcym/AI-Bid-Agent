@@ -12,7 +12,7 @@ from typing import Any
 
 from app.common.errors import BizException
 from app.config import BASE_DIR, AppConfig, SiteConfig
-from app.crawler.base import CrawlerClient, LoginRequiredError
+from app.crawler.base import CrawlerClient, LoginRequiredError, PlaywrightUnavailableError
 from app.docx_gen.generator import WordDocGenerator
 from app.intent.base import IntentParser
 from app.models import Notice, PipelineResult, ParsedIntent
@@ -195,6 +195,10 @@ class PipelineService:
             attempted += cap
             try:
                 urls = fetch_details(site, group, cap)
+            except PlaywrightUnavailableError as exc:  # 轻量版不含浏览器：提示而非告警
+                attempted -= cap  # 整站跳过不计入补全率，否则还会多一条「补全 0/N」告警
+                result.notes.append(exc.short)
+                continue
             except Exception as exc:  # 单站详情失败不影响主链路
                 result.warnings.append(f"站点[{site.name}]详情页抓取失败：{type(exc).__name__}: {exc}")
                 continue
@@ -217,6 +221,9 @@ class PipelineService:
             return self._crawler.fetch(site, intent)
         except LoginRequiredError as exc:
             result.warnings.append(str(exc))
+            return []
+        except PlaywrightUnavailableError as exc:  # 形态差异不等于故障
+            result.notes.append(exc.short)
             return []
         except Exception as exc:  # 单站失败不拖垮整轮
             result.warnings.append(f"站点[{site.name}]抓取失败：{type(exc).__name__}: {exc}")

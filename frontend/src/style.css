@@ -599,6 +599,17 @@ textarea:focus {
   border-radius: 9px;
 }
 
+/* 中性提示：形态差异（如轻量版未内置浏览器），不是故障，别用告警色 */
+.notes {
+  margin: 10px 0;
+  padding: 9px 16px 9px 30px;
+  color: #475569;
+  background: #f8fafc;
+  border: 1px solid #e2e8f0;
+  border-radius: 9px;
+  font-size: 13px;
+}
+
 /* ---------------- 重点速览（模型摘要） ---------------- */
 
 .summary-box {

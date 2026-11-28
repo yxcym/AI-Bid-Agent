@@ -421,6 +421,9 @@ function docUrl(path: string | null): string {
         <p v-if="result.pushed_to?.length" class="note">
           已推送至 <code>{{ result.pushed_to.join('、') }}</code>（邮件含 Word 附件，群机器人为条目标题速览）
         </p>
+        <ul v-if="result.notes?.length" class="notes">
+          <li v-for="n in result.notes" :key="n">{{ n }}</li>
+        </ul>
         <ul v-if="result.warnings.length" class="warnings">
           <li v-for="w in result.warnings" :key="w">{{ w }}</li>
         </ul>

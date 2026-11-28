@@ -4,7 +4,8 @@
   * 继承 HttpCrawlerClient，只换传输层（浏览器拿 page.content()），解析层（选择器、
     urljoin、条目上限）全部复用——同一套 SiteConfig 字段两种引擎通用。
   * 惰性 import：环境没装 playwright 时抛 PlaywrightUnavailableError，
-    PipelineService._safe_fetch 会把它记进 warnings，不拖垮其它站点。
+    PipelineService._safe_fetch 会把它记进 notes（中性提示），不拖垮其它站点。
+  * 浏览器缺失（Executable doesn't exist）与真故障分开：前者是形态差异，后者才告警。
   * 仅支持 html 形态；json 形态站点走直连 AJAX 接口即可，用不着浏览器。
 """
 
@@ -80,6 +81,8 @@ class PlaywrightCrawlerClient(HttpCrawlerClient):
         except CrawlError:
             raise
         except Exception as exc:  # 浏览器启动失败等环境问题
+            if _is_browser_missing(exc):
+                raise PlaywrightUnavailableError(site, _short(exc)) from exc
             raise CrawlError(f"站点[{site.name}]playwright 引擎异常：{_short(exc)}") from exc
 
         return notices[: cfg.max_items_per_site]
@@ -141,9 +144,41 @@ class PlaywrightCrawlerClient(HttpCrawlerClient):
         except (PlaywrightUnavailableError, CrawlError):
             raise
         except Exception as exc:
+            if _is_browser_missing(exc):
+                raise PlaywrightUnavailableError(site, _short(exc)) from exc
             raise CrawlError(f"站点[{site.name}]详情页 playwright 抓取异常：{_short(exc)}") from exc
 
         return done
+
+
+_BROWSER_MISSING_MARK = "Executable doesn't exist"
+
+
+def _is_browser_missing(exc: Exception) -> bool:
+    """区分「本版本没装浏览器」与「真故障」。
+
+    playwright launch 找不到 chrome-headless-shell 时报 `Executable doesn't exist at ...`；
+    这属于形态差异（exe 不内置 Chromium），不该按故障告警。
+    """
+    return _BROWSER_MISSING_MARK in str(exc)
+
+
+def browser_status() -> dict:
+    """探测浏览器组件是否就位，给 /api/health 自证用（exe 应为 false，容器应为 true）。"""
+    try:
+        from playwright.sync_api import sync_playwright
+    except ImportError:
+        return {"available": False, "reason": "playwright 包未安装"}
+    try:
+        with sync_playwright() as p:
+            path = p.chromium.executable_path
+    except Exception as exc:  # driver 起不来 / 目录缺文件
+        return {"available": False, "reason": _short(exc)}
+    import os
+
+    if not path or not os.path.exists(path):
+        return {"available": False, "reason": "浏览器文件缺失"}
+    return {"available": True, "reason": ""}
 
 
 def _short(exc: Exception) -> str:

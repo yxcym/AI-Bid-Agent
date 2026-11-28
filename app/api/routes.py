@@ -30,6 +30,16 @@ def _ctx(request: Request):
     return request.app.state.ctx
 
 
+def _browser_status() -> dict:
+    """health 里的浏览器自证：探测失败也不能拖垮 health。"""
+    try:
+        from app.crawler.playwright_client import browser_status
+
+        return browser_status()
+    except Exception as exc:  # 探测本身不应中断健康检查
+        return {"available": False, "reason": type(exc).__name__}
+
+
 def _forbid_demo(request: Request, action: str) -> None:
     """演示模式守卫：看得见数据，点不出副作用。"""
     if _ctx(request).config.app.demo_mode:
@@ -57,6 +67,7 @@ def health(request: Request) -> dict:
         "output_dir": str(cfg.output_path()),
         "push": ctx.pusher.status(),
         "push_webhook": ctx.webhook.status(),
+        "browsers": _browser_status(),
         "summary": {"enabled": ctx.summarizer.enabled(), "model": ctx.summarizer.model if ctx.summarizer.enabled() else None},
         "run_history": ctx.history.count(),
     }
